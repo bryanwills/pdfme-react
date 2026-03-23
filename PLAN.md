@@ -337,136 +337,296 @@ rollupOptions: { output: { manualChunks: undefined } },
 
 ---
 
-# Phase 2: @pdfme/cli（公開パッケージ、ESM-only）
+# Phase 2: @pdfme/cli（contract-grade machine interface, ESM-only）
 
-## 2.1 コマンド一覧
+> Status (2026-03-23 JST): `packages/cli` のプロトタイプ実装自体は存在するが、
+> 外部評価レポートとソース確認を踏まえて、Phase 2 の主目的を再定義した。
+> ここで最優先すべきなのはコマンド面の拡張ではなく、CLI を
+> **agent / CI / human が共通に使える contract-grade machine interface にすること**。
 
-| コマンド | 用途 |
-|---------|------|
-| `pdfme generate` | PDF生成 + 画像 + grid + diff |
-| `pdfme validate` | テンプレート検証 |
-| `pdfme inspect` | テンプレート構造表示 |
-| `pdfme list-schemas` | スキーマ一覧 |
-| `pdfme schema-info <type>` | スキーマ詳細情報（**新規**） |
-| `pdfme template create` | 空テンプレート作成（**新規**） |
-| `pdfme template add-field` | フィールド追加（**新規**） |
-| `pdfme diff <dir1> <dir2>` | 独立画像差分比較（**新規**） |
+## 2.1 Product Positioning
 
-## 2.2 CLIパーサー: citty
+`@pdfme/cli` は「ライブラリ周辺の便利ツール」ではなく、pdfme v5 の
+**machine interface** として扱う。
 
-`node:util parseArgs` は使用しない（`strict:false` でオプション値消失バグ、boolean/optional value非対応）。
+到達したい姿:
 
-**citty**（UnJS製、ゼロ依存、サブコマンドネイティブ対応）を使用。
+- エージェントが template JSON を編集し、`generate` / `validate` / `pdf2img` / `pdf2size`
+  を繰り返し呼び出して自律検証できる
+- 人間と CI が同じ exit code / JSON contract を共有できる
+- 将来的な markdown plugin / `md2pdf` も、この CLI 契約の上に積める
 
-**`--grid` → `--grid` + `--grid-size` に分離:**
+したがって、Phase 2 の完了条件は「コマンドが増えたこと」ではなく、
+**examples / JSON / font/plugin / fetch/cache / E2E が壊れないこと** に置く。
+
+## 2.2 Phase 2A のスコープ: Contract Hardening
+
+Phase 2A では、既存コマンドの契約を固定する。
+
+対象コマンド:
+
+- `pdfme generate`
+- `pdfme validate`
+- `pdfme pdf2img`
+- `pdfme pdf2size`
+- `pdfme examples`
+
+Phase 2A の間は、以下のような「surface area を広げる新機能」は止める。
+
+- `inspect`
+- `list-schemas`
+- `schema-info`
+- `template create`
+- `template add-field`
+- `doctor`
+- markdown plugin の CLI 露出
+- `md2pdf`
+
+ただし、以下は継続して進めてよい。
+
+- バグ修正
+- 契約整理
+- テスト追加
+- ドキュメント更新
+- 内部リファクタ
+
+## 2.3 Phase 2 Exit Criteria
+
+Phase 2 は、少なくとも以下が満たされた時点で完了とみなす。
+
+1. `playground/public/template-assets/index.json` に載る公式 examples は、すべて CLI で generate 成功する
+2. `examples` は `remote fetch + local cache + versioned manifest` を持つ
+3. `--json` 指定時は、成功失敗を問わず stdout は常に JSON のみ
+4. unknown flag / invalid enum / invalid number / invalid page range は全コマンドで fail-fast + non-zero
+5. `validate` は template-only / unified job / stdin を受ける
+6. `validate --strict` は warning をすべて exit 1 に昇格できる
+7. CLI では公式 plugin をすべて使用できる（`signature` を含む）
+8. フォント契約は明示され、unsupported format/resource は internal crash ではなく structured error になる
+9. `pdf2img -o` の意味は directory-only に固定され、help / docs と実装が一致している
+10. `output.pdf` の暗黙出力は安全策付きで扱われる
+11. `generate` / `validate` / `pdf2img` / `pdf2size` はオフラインで成立する
+12. examples / invalid args / JSON failure / offline behavior / font-plugin behavior を CI で検証する
+13. user-facing version 表示が `0.0.0` 固定ではない
+
+## 2.4 Command Surface in the Stabilization Tranche
+
+| コマンド | Phase 2Aで固める契約 |
+|---------|----------------------|
+| `pdfme generate` | unified/split/stdin、JSON envelope、fail-fast validation、font/plugin resolution、overwrite policy |
+| `pdfme validate` | template-only/unified/stdin、warning/error分離、`--strict`、JSON envelope |
+| `pdfme pdf2img` | directory-only `-o`、strict arg validation、JSON envelope、PDF parse error sanitization |
+| `pdfme pdf2size` | JSON envelope、PDF parse error sanitization、paper size detection |
+| `pdfme examples` | remote fetch + local cache + versioned manifest、shared playground assets、metadata-aware listing |
+
+## 2.5 Examples Asset Contract
+
+`examples` と `playground` は **同じ資産を共有** する。
+ただし、「公式 examples」として manifest に載るものは、必ず CLI 契約を満たす必要がある。
+
+さらに、examples は単なるデモではなく、今後継続的に拡充していく
+**pdfme のテンプレート資産** として扱う。
+この資産は次の用途を持つ。
+
+- ユーザー向けの onboarding / starter templates
+- AI / agent による template 生成・改善時の参照ベース
+- 将来的な RAG / 検索 / 推薦の対象
+- CLI / playground / CI の回帰テスト資産
+
+したがって、examples の拡充は Phase 2 のスコープ外ではなく、
+**contract を壊さずに資産価値を積み上げる継続投資** とみなす。
+
+つまり、近いうちは:
+
+- playground 側の公式 examples を CLI で成功する font/plugin 制約に合わせて修正する
+- CLI 側が後追いで何でも吸収するより、manifest に載る assets を contract-first に整える
+
+manifest には少なくとも次の情報を持たせる。
+
+- `name`
+- `author`
+- `version`
+- `description`
+- `pageCount`
+- `requiresFonts`
+- `requiresPlugins`
+- `digest`
+
+`examples --list` / `examples --json` はこの metadata を返せるようにする。
+
+将来的には、template の検索性・再利用性を高めるため、次のような metadata 追加も検討する。
+
+- `tags`
+- `category`
+- `locale`
+- `industry`
+- `layoutHints`
+- `searchText`
+
+## 2.6 Examples Fetch / Cache / Versioning
+
+examples は bundle しない。理由は:
+
+- CLI package size を抑えたい
+- examples は今後増やしたい
+- playground と共有したい
+
+この方針は、「examples を継続的に増やして資産化する」方向とも整合する。
+bundle ではなく remote + cache にすることで、CLI の軽さを保ちながら
+template 資産の拡充速度を上げられる。
+
+その代わり、次を正式仕様とする。
+
+- examples は remote fetch する
+- 初回取得後は local cache を使う
+- manifest は versioned である
+- CLI は自分の version に対応する manifest を見に行く
+- `--latest` は opt-in
+
+これにより、fetch 前提と machine reproducibility を両立する。
+
+## 2.7 Font Policy
+
+短期方針:
+
+- 強保証する format は `ttf` のみ
+- `otf` は当面 unsupported error
+- `ttc` は当面 unsupported error
+- auto-download を強く保証するのは `NotoSansJP` のみ
+
+中長期方針:
+
+- playground examples で使う font は、できるだけ Google Fonts にある family に寄せる
+- 将来的に auto-download を広げる場合でも、任意フォント名の自由取得はしない
+- manifest で allowlist された family のみ取得・キャッシュする
+
+重要なのは、font 問題を「たまたま動く」ではなく
+**contract と structured error で管理する** こと。
+
+## 2.8 Plugin Policy
+
+CLI は **公式 plugin をすべて使える状態** を目指す。
+
+短期的に必要なこと:
+
+- `signature` を公式スコープに含める
+- playground examples が要求する plugin を CLI registry で解決できるようにする
+- unsupported plugin は generate 前に structured error を返す
+
+## 2.9 Machine-Readable Contract
+
+`--json` 指定時は、全コマンドで stdout を JSON のみに固定する。
+human-readable な補足は stderr に寄せる。
+
+推奨 envelope:
+
+```json
+{
+  "ok": true,
+  "command": "generate",
+  "exitCode": 0,
+  "data": {}
+}
 ```
---grid           # boolean: グリッドを有効化
---grid-size <n>  # number: 格子間隔mm（デフォルト10）
-```
 
-**`--threshold` → `--max-diff` に変更（単位: 0-100%で統一）:**
-```
---max-diff 10    # 10%以下のdiffを許容
-```
-
-## 2.3 generate コマンド
-
-**mm→px変換（修正済み）:**
-```typescript
-import { ZOOM } from '@pdfme/common'; // 3.7795275591 = 96/25.4
-const mmToPx = ZOOM * scale;
-// ※ 前回の 2.835 は mm→pt 変換であり mm→px ではない
-```
-
-**canvas 遅延import:**
-```typescript
-async function loadImageTools() {
-  try {
-    const { pdf2img } = await import('@pdfme/converter');
-    const canvas = await import('canvas');
-    return { pdf2img, canvas };
-  } catch {
-    console.error(
-      'Error: "canvas" package required for --image/--grid.\n' +
-      'Install: npm install canvas\n' +
-      'Linux: sudo apt-get install libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev librsvg2-dev'
-    );
-    process.exit(1);
+```json
+{
+  "ok": false,
+  "command": "generate",
+  "exitCode": 2,
+  "error": {
+    "code": "FONT_NOT_FOUND",
+    "message": "NotoSansJP is required by template.schemas",
+    "details": {}
   }
 }
 ```
 
-**--grid multi-input対応:**
-```typescript
-// inputs.length > 1 の場合の page index マッピング:
-// output page = inputIndex * templatePages + templatePageIndex
-const templatePages = template.schemas.length;
-const templatePageIndex = outputPageIndex % templatePages;
-const schemas = template.schemas[templatePageIndex];
-// staticSchemaも描画対象に含める
-const staticSchemas = isBlankPdf(template.basePdf) ? template.basePdf.staticSchema || [] : [];
-```
+合わせて、以下も固定する。
 
-**エラーメッセージに修正案:**
-```
-Error: Unknown type "textbox" in field "title". Did you mean: text?
-Error: Font "Arial" not found. Available: NotoSerifJP-Regular. Use --font to load custom fonts.
-Warning: Field "title" at (250,20) exceeds page width (210mm).
-```
+- unknown flag は error
+- invalid enum は error
+- invalid number は error
+- invalid page range は error
+- parse failure は JSON で返す
 
-**--verbose, --batch, --open サポート**
+## 2.10 Input / Output Semantics
 
-## 2.4 template create + add-field（新規）
+### `validate`
 
-```bash
-pdfme template create --size a4 -o template.json
-pdfme template add-field -t template.json --name title --type text \
-  --position 20,20 --size 170,15 --content "Invoice" --readonly \
-  --prop fontSize=30 --prop alignment=center
-```
+- template-only JSON を受ける
+- unified job JSON を受ける
+- stdin を受ける
+- unknown top-level field / ignored field は warning
+- `--strict` は warning 全部を exit 1
 
-実装: JSON操作のみ。各スキーマの `propPanel.defaultSchema` からデフォルト値取得。
+### `pdf2img -o`
 
-## 2.5 schema-info（新規）
+- 当面は directory-only に固定する
+- help / README / 実装を一致させる
+- 1ページ単体ファイルや pattern 出力が必要なら、将来 `--output-file` / `--output-pattern` を別フラグで追加する
 
-```bash
-pdfme schema-info text --json
-```
+### overwrite policy
 
-`getAllPlugins()` → `plugin.propPanel.defaultSchema` を読み取り表示。
+- 明示した `-o` は上書き可
+- 暗黙の `output.pdf` だけは、既存ファイルがあれば失敗させて `-o` か `--force` を促す
 
-## 2.6 package.json
+## 2.11 Offline Policy
+
+- `examples` 初回取得は network を要求してよい
+- ただし cache 済み examples は offline でも使えるべき
+- `generate` / `validate` / `pdf2img` / `pdf2size` は examples とは独立にオフラインで成立するべき
+
+## 2.12 Test / Release Gates
+
+CI で最低限次を回す。
+
+- official examples 全件 `examples -> generate`
+- invalid option matrix
+- `--json` success/failure snapshot
+- font/plugin dependency matrix
+- offline lane (`examples` 以外)
+- malformed PDF / malformed JSON の error sanitization
+
+これらを通るまで、Phase 2A は完了扱いにしない。
+
+## 2.13 Deferred Until After Phase 2A
+
+以下は contract hardening 完了後に再評価する。
+
+- `inspect`
+- `list-schemas`
+- `schema-info`
+- `template create`
+- `template add-field`
+- `doctor`
+- markdown plugin の CLI 露出
+- `md2pdf`
+
+`doctor` は有力候補だが、今は surface 拡張より contract 固定を優先する。
+
+## 2.14 package.json / Versioning
 
 ```jsonc
 {
   "name": "@pdfme/cli",
   "type": "module",
   "bin": { "pdfme": "dist/index.js" },
-  "dependencies": {
-    "@pdfme/common": "*", "@pdfme/schemas": "*",
-    "@pdfme/generator": "*", "@pdfme/converter": "*",
-    "citty": "^0.1.0", "pixelmatch": "^6.0.0", "pngjs": "^7.0.0"
-  },
-  "optionalDependencies": { "canvas": "^2.11.0" },
   "engines": { "node": ">=20" }
 }
 ```
 
-内部deps `"*"` はmonorepo convention。publish時に自動解決。npx対応のためregular deps。
+追加方針:
 
-## 2.7 validate仕様
+- user-facing version は `0.0.0` 固定にしない
+- workspace 中でも package version を表示する
+- 必要なら dev suffix を付ける
 
-- 同一ページ内のスキーマ名重複: ERROR
-- 異なるページ間の同名: WARNING
-- 位置のページ外はみ出し: WARNING
+## 2.15 工数見直し
 
-## 2.8 テスト
+旧見積もりの「7-8日」は、コマンド追加中心の仮説だったため再見積もりする。
 
-ESMでは `__dirname` 使用不可 → `fileURLToPath(import.meta.url)` 使用。
-fonts.ts に `subset?: boolean` 追加。
-stdin読み取りに3秒タイムアウト。
-
-## 2.9 工数: 7-8日
+- Phase 2A: contract hardening と release gate 整備を優先
+- Phase 2B: 追加コマンドは Phase 2A 完了後に別途見積もる
 
 ---
 
@@ -497,18 +657,28 @@ f. フィールド同士が意図せず重なっていない
 
 grid付き画像でフィールド位置を確認 → inspectで構造確認 → 修正 → 再生成で検証のワークフロー。
 
-## 3.4 工数: 1日
+## 3.4 前提条件
+
+Phase 3 は Phase 2A の exit criteria を満たした後に着手する。
+Skills は不安定な CLI を吸収する層ではなく、**安定した CLI contract を束ねる層** として設計する。
+
+markdown plugin / `md2pdf` は将来的に有力だが、Phase 2A 完了前に広げない。
+
+## 3.5 工数
+
+Phase 2A 完了後に再見積もりする。
 
 ---
 
 # 全体スケジュール
 
-| Phase | 工数 | 累計 |
+| Phase | 状態 | 工数 |
 |-------|------|------|
-| 0: 互換性方針 | 1日 | 1日 |
-| 1: Vite/Vitest/Oxlint | 14-17日 | 15-18日 |
-| 2: @pdfme/cli | 7-8日 | 22-26日 |
-| 3: Skills | 1日 | **23-27日** |
+| 0: 互換性方針 | 完了 | 1日 |
+| 1: Vite/Vitest/Oxlint | 完了 | 14-17日 |
+| 2A: CLI contract hardening | 進行対象 | 再見積もり |
+| 2B: CLI surface expansion | 2A完了後 | 再見積もり |
+| 3: Skills | 2A完了後 | 再見積もり |
 
 ---
 
@@ -520,6 +690,10 @@ grid付き画像でフィールド位置を確認 → inspectで構造確認 →
 | pdfjs-dist v4 API変更 | 高 | converter importパス事前調査 |
 | vitest-image-snapshot API差異 | 高 | `imageMatcher()` + `toMatchImage()` |
 | vite-plugin-dts モノレポ問題 | 高 | 使用せず `tsc --emitDeclarationOnly` |
+| official examples と playground asset の乖離 | 高 | shared manifest を単一の truth source にし、manifest 掲載 assets は CI で全件 generate |
+| remote fetch 前提での再現性欠如 | 高 | versioned manifest + local cache + `--latest` opt-in |
+| font/plugin 契約が曖昧なまま examples が増える | 高 | TTF/NotoSansJP/official plugins を短期 contract として固定し、unsupported は structured error |
+| `--json` / invalid args 契約の揺れ | 高 | 全コマンドの JSON envelope と fail-fast validation を CI snapshot 化 |
 | Oxlint型認識ルールの完全移行未了 | 中 | 当面は `tsc -b` を gate として維持 |
 | set-version.js CJS問題 | 中 | ESM書き換えまたは.cjsリネーム |
 | canvas ビルド失敗 | 中 | optionalDeps + 遅延import |
@@ -534,3 +708,4 @@ grid付き画像でフィールド位置を確認 → inspectで構造確認 →
 - docs/schema-defaults.json（静的参照ファイル）
 - Vite+統合CLI移行（安定版リリース後）
 - カスタムプラグインCLI対応（`--plugins`）
+- `doctor` / `schema-info` / `template create` / `md2pdf` などの追加 surface は Phase 2A 完了後に再評価

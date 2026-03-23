@@ -1,6 +1,6 @@
 # PROGRESS
 
-Last updated: 2026-03-21 JST
+Last updated: 2026-03-23 JST
 
 Latest committed checkpoint:
 
@@ -8,7 +8,31 @@ Latest committed checkpoint:
 
 ## Current Status
 
-`PLAN.md` のうち、`Phase 0` と `Phase 1` を完了。次の主作業は `Phase 2` (`@pdfme/cli`)。
+`PLAN.md` のうち、`Phase 0` と `Phase 1` を完了。
+現在の主作業は `Phase 2A`、つまり `@pdfme/cli` を
+**contract-grade machine interface にするための hardening**。
+
+`packages/cli` 自体はプロトタイプ実装済みだが、外部評価レポートとソース確認を踏まえ、
+「CLI 未着手」ではなく「方向性確定済み・契約硬化待ち」の状態と整理し直した。
+
+今回までで Phase 2 に関して確定したこと:
+
+- `pdfme/cli` は v5 の machine interface として扱う
+- `examples` / `--json` / font/plugin / fetch/cache / E2E が固まるまで、新しいコマンド面は広げない
+- 公式 examples は、manifest に載るものを全部 CLI で成功させる
+- `examples` は `remote fetch + local cache + versioned manifest`
+- `playground` と `examples` は同じ資産を共有する
+- 近いうちは examples 側を CLI 契約に合わせて直す
+- examples は今後継続的に拡充していくテンプレート資産として扱う
+- examples は onboarding 用サンプルであると同時に、AI/agent の参照ベース・将来的な検索/RAG資産でもある
+- フォントは短期的に `ttf` と `NotoSansJP` を強保証し、`otf` / `ttc` は unsupported error に寄せる
+- CLI では公式 plugin を全部使える状態を目指し、`signature` も含める
+- `--json` 指定時は成功失敗を問わず stdout は JSON のみ
+- invalid 引数は全コマンドで fail-fast + non-zero
+- `validate` は template-only / unified job / stdin を受ける
+- `pdf2img -o` は当面 directory-only に固定する
+- `examples` 初回取得以外の core workflow はオフラインで成立させる
+- version 表示は `0.0.0` 固定にしない
 
 今回までで完了:
 
@@ -61,20 +85,37 @@ Latest committed checkpoint:
 - `lint` / `fmt` を `vp lint` / `vp fmt` ベースへ寄せ、shared config を `.oxlintrc.json` / `.oxfmtrc.json` に移行
 - legacy ESLint / Prettier config と不要 devDependencies を撤去し、lint/format の front door を `vp native` に統一
 
-まだ未着手:
+今回までで Phase 2 に関して完了:
 
-- CLI (`Phase 2`)
-- Claude Code Skills (`Phase 3`)
+- ルート `REPORT.md` に戦略レポートを追加
+- 外部レポート
+  - `/Users/kyoheifukuda/Develop/life/tmp/pdfme/CLI_FEEDBACK_REPORT.md`
+  - `/Users/kyoheifukuda/Develop/life/tmp/pdfme/20260323-151148-cli-feedback/REPORT.md`
+  - `/Users/kyoheifukuda/Develop/life/tmp/pdfme/20260323-151148-cli-feedback/SUMMARY.json`
+  の読み込みと統合
+- `packages/cli` / `playground/public/template-assets` / `packages/cli/__tests__` のソース確認
+- Phase 2 の done definition を「コマンド追加」から「contract hardening」へ更新
+- Phase 3 を、Phase 2A 完了後に着手する前提へ更新
 
 現在の残課題:
 
-- CLI (`Phase 2`) 未着手
-- Claude Code Skills (`Phase 3`) 未着手
+- Phase 2A: official examples 全件 green
+- Phase 2A: `examples` の fetch/cache/versioned manifest
+- Phase 2A: `--json` contract の全コマンド統一
+- Phase 2A: invalid arg fail-fast 化
+- Phase 2A: font/plugin contract 固定
+- Phase 2A: `signature` plugin の CLI 対応
+- Phase 2A: `validate` の unified/stdin 対応
+- Phase 2A: `pdf2img -o` の directory-only 固定
+- Phase 2A: examples / invalid args / JSON failure / offline behavior の E2E matrix
+- Phase 3: Claude Code Skills（Phase 2A 完了後）
 
 次に進める順序:
 
-1. CLI (`Phase 2`) の前提整理に着手する
-2. Claude Code Skills (`Phase 3`) の設計に入る
+1. `packages/cli` の contract hardening を開始する
+2. `playground/public/template-assets` を CLI 契約に合わせて整える
+3. CLI の E2E matrix を整え、release gate 化する
+4. Phase 2A 完了後に Phase 3 / 追加コマンドを再評価する
 
 ## Completed Work
 
@@ -811,42 +852,64 @@ Latest committed checkpoint:
 
 ### Priority 5: CLI / Skills
 
-未着手:
+方向性確定済み:
 
-- `@pdfme/cli`
+- `@pdfme/cli` は v5 の machine interface として扱う
+- contract hardening が先、surface expansion は後
+- 公式 examples は全部 CLI で成功させる
+- `examples` は shared playground assets + remote fetch + local cache + versioned manifest
+- examples は今後も増やしていく資産なので、contract と metadata を壊さずに拡充できる前提を作る
+- 公式 plugin は全部 CLI で使える状態を目指す
+- `--json` は成功失敗を問わず stdout JSON のみ
+- invalid 引数は全コマンドで fail-fast + non-zero
+
+Phase 2A の主タスク:
+
 - `pdfme generate`
 - `pdfme validate`
+- `pdfme pdf2img`
+- `pdfme pdf2size`
+- `pdfme examples`
+- examples manifest / cache / versioning
+- examples metadata / asset strategy
+- font/plugin hardening
+- release gate 用 E2E matrix
+
+Phase 2A 完了まで defer:
+
 - `pdfme inspect`
 - `schema-info`
 - `template create`
 - `template add-field`
+- `doctor`
+- markdown plugin の CLI 露出
+- `md2pdf`
 - Claude Code Skills
 
 ## Recommended Next Step
 
-次のターンでは `PROGRESS.md` を起点にして、以下の順で進めるのが安全。
+次のターンでは、Phase 2A を以下の順で進めるのが安全。
 
-1. `lint:typecheck` の unused `eslint-disable` warning を先に整理する
-2. `lint:oxlint` で残っている 48 warning を、`pdf-lib` 由来とそれ以外に分けて段階的に潰す
-3. playground 周辺 script の exports 追従確認を進める
+1. `examples` の manifest 契約と cache/versioning の土台を決めて実装する
+2. `generate` / `validate` / `pdf2img` / `pdf2size` / `examples` の JSON contract を統一する
+3. invalid arg fail-fast と `pdf2img -o` directory-only を固める
+4. playground の公式 examples を CLI 契約で green に揃える
+5. examples / invalid args / JSON failure / offline behavior の E2E matrix を追加する
 
 ## Known Risks
 
-- `PLAN.md` の Phase 1 は現状のまま一気に切り替えると変更範囲が広すぎる
-- `converter` は browser/node entry と `pdfjs-dist` 更新が絡むため、単独で切り出して進めたほうが安全
-- `playground` は package exports の変更に追従確認が必要
-- `ui` の build は source alias と typecheck config 分離の上で成立しているため、次の移行ではこの構成を壊さないこと
-- `lint:typecheck` は `PLAN.md` 準拠の最小ルールで全 package に適用済みで、現在は warning 0
-- `lint:typecheck` 自体は warning 0 まで整理済みだが、`oxlint` にはまだ 48 warning 残っており、主に `pdf-lib` の legacy 実装に集中している
-- `manipulator` の snapshot runner は `vitest-image-snapshot` へ切り替わったため、今後 snapshot 更新時は生成される補助ディレクトリが変わること
-- `pdfjs-dist` v5 の Node rasterize は `canvas` render target に戻すと白紙回帰するため、`packages/converter/src/index.node.ts` の `@napi-rs/canvas` 依存を安易に外さないこと
-- generator の image snapshot は corrected renderer 出力へ再基準化済みであり、`fe08c521` の blank baseline を前提に見ないこと
-- manipulator の e2e snapshot は Vite build 移行後の renderer 出力へ再基準化済みで、差分は文字エッジの AA 変化が主因だった
-- `pdf-lib` の clean が効かない状態に戻ると stray `src/**/*.d.ts` が lint を壊すため、`packages/pdf-lib/package.json` の clean script を維持すること
-- `schemas` の Node ESM import は `air-datepicker/locale/*` を Vite bundle 側へ取り込む前提で成立しているため、`packages/schemas/vite.config.mts` の external 判定を安易に戻さないこと
-- `converter` / `schemas` / `generator` の単体 build は、workspace dependency の dist が無い clean 状態では root build order に依存すること
+- official examples と playground assets を共有するため、playground 側の変更が CLI 契約を壊しやすい
+- remote fetch 前提なので、manifest versioning と cache invalidation を曖昧にすると再現性が壊れる
+- `signature` を含む official plugin 対応で、browser 前提の実装が Node CLI に漏れる可能性がある
+- strict arg validation により、今の曖昧な挙動に依存した試行錯誤は壊れる。ただし pre-release のため許容方針
+- `ttf` のみ強保証なので、既存 `otf` / `ttc` 利用者は明示 error になる
+- core commands は offline 対応だが、examples 初回取得は network に依存する
+- `--json` envelope を全コマンドで統一するまでは、agent tooling での誤判定が起きやすい
 
 ## Notes For Next Turn
 
-- 次回はこの `PROGRESS.md` を読み、lint warning の整理から進める
-- `Phase 1` の package build Vite 化は完了済みなので、以降は `pdf-lib` 中心の oxlint warning 整理と playground 周辺確認が主対象
+- 次回はこの `PROGRESS.md` とルート `REPORT.md` を先に読む
+- Phase 2 の主目的は command expansion ではなく contract hardening
+- `inspect` / `schema-info` / `template create` / `doctor` / markdown plugin / `md2pdf` は Phase 2A 完了まで着手しない
+- `examples` は shared playground assets 前提で green に揃える
+- `--json` は成功失敗を問わず stdout JSON のみ、invalid 引数は fail-fast を基本方針とする
