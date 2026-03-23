@@ -1,23 +1,34 @@
 import { defineCommand } from 'citty';
+import {
+  assertNoUnknownFlags,
+  fail,
+  printJson,
+  runWithContract,
+} from '../contract.js';
 import { writeOutput } from '../utils.js';
-import { getExampleTemplateNames, fetchExampleTemplate, getExamplesBaseUrl } from '../example-templates.js';
+import {
+  fetchExampleTemplateWithSource,
+  getExampleManifest,
+  getExamplesBaseUrl,
+} from '../example-templates.js';
 
-async function loadTemplate(name: string): Promise<Record<string, unknown>> {
-  try {
-    return await fetchExampleTemplate(name);
-  } catch (error) {
-    const available = await getExampleTemplateNames();
-    const fallbackHint = available.length > 0 ? `\nAvailable templates: ${available.join(', ')}` : '';
-
-    console.error(
-      'Error: Could not fetch example template data.\n' +
-        `URL: ${getExamplesBaseUrl()}/${encodeURIComponent(name)}/template.json\n` +
-        `${error instanceof Error ? error.message : String(error)}` +
-        fallbackHint,
-    );
-    process.exit(3);
-  }
-}
+const examplesArgs = {
+  name: { type: 'positional' as const, description: 'Template name to output', required: false },
+  list: { type: 'boolean' as const, description: 'List available templates', default: false },
+  output: { type: 'string' as const, alias: 'o', description: 'Output file path' },
+  withInputs: {
+    type: 'boolean' as const,
+    alias: 'w',
+    description: 'Output unified format with sample inputs',
+    default: false,
+  },
+  latest: {
+    type: 'boolean' as const,
+    description: 'Fetch the latest manifest instead of the version-pinned manifest',
+    default: false,
+  },
+  json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
+};
 
 function generateSampleInputs(template: Record<string, unknown>): Record<string, string>[] {
   const schemas = template.schemas as Record<string, unknown>[][] | undefined;
@@ -47,58 +58,81 @@ export default defineCommand({
     name: 'examples',
     description: 'List and output example pdfme templates',
   },
-  args: {
-    name: { type: 'positional', description: 'Template name to output', required: false },
-    list: { type: 'boolean', description: 'List available templates', default: false },
-    output: { type: 'string', alias: 'o', description: 'Output file path' },
-    withInputs: { type: 'boolean', alias: 'w', description: 'Output unified format with sample inputs', default: false },
-  },
-  async run({ args }) {
-    let templateNames: string[];
-    try {
-      templateNames = await getExampleTemplateNames();
-    } catch (error) {
-      console.error(
-        'Error: Could not fetch examples index.\n' +
-          `URL: ${getExamplesBaseUrl()}/index.json\n` +
-          `${error instanceof Error ? error.message : String(error)}`,
-      );
-      process.exit(3);
-    }
+  args: examplesArgs,
+  async run({ args, rawArgs }) {
+    return runWithContract({ json: Boolean(args.json) }, async () => {
+      assertNoUnknownFlags(rawArgs, examplesArgs);
 
-    if (args.list || !args.name) {
-      console.log('Available templates:');
-      for (const name of templateNames) {
-        console.log(`  ${name}`);
+      const manifestResult = await getExampleManifest({ latest: args.latest });
+      const templateEntries = manifestResult.manifest.templates;
+      const templateNames = templateEntries
+        .map((entry) => entry.name)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0)
+        .sort();
+
+      if (args.list || !args.name) {
+        if (args.json) {
+          printJson({
+            ok: true,
+            source: manifestResult.source,
+            baseUrl: getExamplesBaseUrl(),
+            manifest: manifestResult.manifest,
+          });
+        } else {
+          console.log('Available templates:');
+          for (const name of templateNames) {
+            console.log(`  ${name}`);
+          }
+        }
+        return;
       }
-      return;
-    }
 
-    if (!templateNames.includes(args.name)) {
-      console.error(
-        `Error: Template "${args.name}" not found.\nAvailable templates: ${templateNames.join(', ')}`,
-      );
-      process.exit(1);
-    }
+      const entry = templateEntries.find((template) => template.name === args.name);
+      if (!entry) {
+        fail(`Template "${args.name}" not found. Available templates: ${templateNames.join(', ')}`, {
+          code: 'EARG',
+          exitCode: 1,
+        });
+      }
 
-    const template = await loadTemplate(args.name);
+      const templateResult = await fetchExampleTemplateWithSource(args.name, {
+        latest: args.latest,
+        manifest: manifestResult.manifest,
+      });
 
-    let output: unknown;
-    if (args.withInputs) {
-      const inputs = generateSampleInputs(template);
-      output = { template, inputs };
-    } else {
-      output = template;
-    }
+      const output = args.withInputs
+        ? { template: templateResult.template, inputs: generateSampleInputs(templateResult.template) }
+        : templateResult.template;
 
-    const jsonStr = JSON.stringify(output, null, 2);
+      if (args.output) {
+        writeOutput(args.output, new TextEncoder().encode(JSON.stringify(output, null, 2)));
 
-    if (args.output) {
-      writeOutput(args.output, new TextEncoder().encode(jsonStr));
-      const label = args.withInputs ? 'Job file' : 'Template';
-      console.log(`\u2713 ${label} written to ${args.output}`);
-    } else {
-      console.log(jsonStr);
-    }
+        if (args.json) {
+          printJson({
+            ok: true,
+            name: args.name,
+            source: templateResult.source,
+            outputPath: args.output,
+            mode: args.withInputs ? 'job' : 'template',
+          });
+        } else {
+          const label = args.withInputs ? 'Job file' : 'Template';
+          console.log(`\u2713 ${label} written to ${args.output}`);
+        }
+        return;
+      }
+
+      if (args.json) {
+        printJson({
+          ok: true,
+          name: args.name,
+          source: templateResult.source,
+          mode: args.withInputs ? 'job' : 'template',
+          data: output,
+        });
+      } else {
+        console.log(JSON.stringify(output, null, 2));
+      }
+    });
   },
 });
