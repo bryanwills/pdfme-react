@@ -4,7 +4,7 @@ Last updated: 2026-03-23 JST
 
 Latest committed checkpoint:
 
-- `193e82b8` `Clean up pdf-lib lint and localize playground fonts`
+- `f7504a38` `Add cached versioned examples manifests`
 
 ## Current Status
 
@@ -14,6 +14,23 @@ Latest committed checkpoint:
 
 `packages/cli` 自体はプロトタイプ実装済みだが、外部評価レポートとソース確認を踏まえ、
 「CLI 未着手」ではなく「方向性確定済み・契約硬化待ち」の状態と整理し直した。
+
+現在は Phase 2A の前半実装まで進み、以下はすでに着手・反映済み:
+
+- core commands の contract hardening
+  - `--json` success/failure envelope の共通化
+  - invalid arg fail-fast
+  - `validate` の unified job / stdin 対応
+  - `pdf2img -o` の directory-only 明確化
+  - implicit `output.pdf` の safety guard
+- `examples` の `remote fetch + local cache + versioned manifest`
+- CLI version 表示の `0.0.0` 脱却
+- `signature` の公式 plugin 化
+  - `@pdfme/schemas` から export
+  - CLI / generator / playground / docs が同じ実装を参照
+- official example font を `examples --withInputs` の unified job `options.font` に埋め込む対応
+- playground asset manifest を metadata-aware に拡張
+- manifest 掲載 templates を generator で renderable か確認する CLI integration test の追加
 
 今回までで Phase 2 に関して確定したこと:
 
@@ -96,25 +113,41 @@ Latest committed checkpoint:
 - `packages/cli` / `playground/public/template-assets` / `packages/cli/__tests__` のソース確認
 - Phase 2 の done definition を「コマンド追加」から「contract hardening」へ更新
 - Phase 3 を、Phase 2A 完了後に着手する前提へ更新
+- `aa0b6b32` `Harden core CLI machine interface`
+  - `generate` / `validate` / `pdf2img` / `pdf2size` の共通 contract 層
+  - `--json` success/failure shape の統一
+  - invalid arg fail-fast
+  - `validate` の unified job / stdin 対応
+  - `pdf2img -o` の directory-only 整理
+  - font policy を `ttf` 強保証 + `otf` / `ttc` unsupported に固定
+- `f7504a38` `Add cached versioned examples manifests`
+  - `examples` の remote fetch + local cache + versioned manifest
+  - playground asset manifest の metadata 拡張
+  - CLI 側 examples smoke / contract test の追加
+- `signature` を `@pdfme/schemas` の公式 plugin として昇格
+  - generator integration test の inline `signature` 定義を削除
+  - playground plugin / thumbnail script を shared implementation に寄せた
+  - custom schema / custom UI docs を公式 plugin 実装参照へ更新
+- unified job の `options` を CLI が正式に受け渡すよう整理
+- `examples --withInputs` が official example font を `options.font` に埋め込むよう整理
+- manifest 掲載 templates を playground assets から読み込み、generator で renderable か検証する CLI integration test を追加
+- `packages/cli/README.md` を current contract に合わせて更新
 
 現在の残課題:
 
-- Phase 2A: official examples 全件 green
-- Phase 2A: `examples` の fetch/cache/versioned manifest
-- Phase 2A: `--json` contract の全コマンド統一
-- Phase 2A: invalid arg fail-fast 化
-- Phase 2A: font/plugin contract 固定
-- Phase 2A: `signature` plugin の CLI 対応
-- Phase 2A: `validate` の unified/stdin 対応
-- Phase 2A: `pdf2img -o` の directory-only 固定
+- Phase 2A: official examples 全件 green を、real CLI path ベースの release gate に引き上げる
+- Phase 2A: `examples` の fetch/cache/versioning を CI で壊せないように固定する
+- Phase 2A: `--json` contract の cross-command failure matrix を詰める
+- Phase 2A: invalid args / offline behavior / file overwrite policy の E2E matrix を詰める
+- Phase 2A: playground 側 official examples を CLI contract から見て壊れない asset に揃え続ける
 - Phase 2A: examples / invalid args / JSON failure / offline behavior の E2E matrix
 - Phase 3: Claude Code Skills（Phase 2A 完了後）
 
 次に進める順序:
 
-1. `packages/cli` の contract hardening を開始する
-2. `playground/public/template-assets` を CLI 契約に合わせて整える
-3. CLI の E2E matrix を整え、release gate 化する
+1. manifest 掲載 official examples を real CLI path で全件 green にする
+2. CLI の E2E matrix を整え、release gate 化する
+3. `playground/public/template-assets` を CLI 契約に合わせて継続的に維持できる形へ詰める
 4. Phase 2A 完了後に Phase 3 / 追加コマンドを再評価する
 
 ## Completed Work
@@ -875,6 +908,16 @@ Phase 2A の主タスク:
 - font/plugin hardening
 - release gate 用 E2E matrix
 
+Phase 2A で今回までに完了:
+
+- core commands の contract hardening
+- `examples` の manifest / cache / versioning 基盤
+- `signature` の公式 plugin 化
+- unified job `options` の CLI 対応
+- official example font の job 埋め込み
+- CLI README / website docs / 日本語 docs の同期
+- playground assets を使った example renderability test の追加
+
 Phase 2A 完了まで defer:
 
 - `pdfme inspect`
@@ -890,21 +933,21 @@ Phase 2A 完了まで defer:
 
 次のターンでは、Phase 2A を以下の順で進めるのが安全。
 
-1. `examples` の manifest 契約と cache/versioning の土台を決めて実装する
-2. `generate` / `validate` / `pdf2img` / `pdf2size` / `examples` の JSON contract を統一する
-3. invalid arg fail-fast と `pdf2img -o` directory-only を固める
-4. playground の公式 examples を CLI 契約で green に揃える
-5. examples / invalid args / JSON failure / offline behavior の E2E matrix を追加する
+1. manifest 掲載 official examples を subprocess ベースの real CLI path でも全件 green にする
+2. invalid args / JSON failure / offline behavior / overwrite safety の E2E matrix を追加する
+3. examples fetch/cache/versioning の回帰を CI gate に入れる
+4. playground の公式 examples を CLI 契約で green に揃え続けるための asset lint / validation を検討する
+5. Phase 2A 完了条件を満たしたら Phase 3 / 追加コマンドの再評価に戻る
 
 ## Known Risks
 
 - official examples と playground assets を共有するため、playground 側の変更が CLI 契約を壊しやすい
 - remote fetch 前提なので、manifest versioning と cache invalidation を曖昧にすると再現性が壊れる
-- `signature` を含む official plugin 対応で、browser 前提の実装が Node CLI に漏れる可能性がある
+- `signature` は公式 plugin 化したが、今後 browser 寄りの UI/plugin 変更が Node CLI でも壊れない前提を維持する必要がある
 - strict arg validation により、今の曖昧な挙動に依存した試行錯誤は壊れる。ただし pre-release のため許容方針
 - `ttf` のみ強保証なので、既存 `otf` / `ttc` 利用者は明示 error になる
 - core commands は offline 対応だが、examples 初回取得は network に依存する
-- `--json` envelope を全コマンドで統一するまでは、agent tooling での誤判定が起きやすい
+- `--json` envelope 自体は統一したが、failure path を cross-command で網羅し切るまでは agent tooling での誤判定余地が残る
 
 ## Notes For Next Turn
 
@@ -913,3 +956,5 @@ Phase 2A 完了まで defer:
 - `inspect` / `schema-info` / `template create` / `doctor` / markdown plugin / `md2pdf` は Phase 2A 完了まで着手しない
 - `examples` は shared playground assets 前提で green に揃える
 - `--json` は成功失敗を問わず stdout JSON のみ、invalid 引数は fail-fast を基本方針とする
+- `signature` は `@pdfme/schemas` の公式 plugin として扱い、CLI / generator / playground / docs の実装差分を増やさない
+- official examples は将来的な AI/RAG 資産でもあるので、asset metadata と renderability test を維持する

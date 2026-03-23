@@ -5,11 +5,13 @@ import { fail, isOptionProvided } from './contract.js';
 export interface UnifiedJob {
   template: Record<string, unknown>;
   inputs: Record<string, unknown>[];
+  options?: unknown;
 }
 
 interface LoadedInput {
   template: Record<string, unknown>;
   inputs: Record<string, unknown>[];
+  options?: unknown;
   templateDir?: string;
 }
 
@@ -48,6 +50,7 @@ export function loadInput(args: {
       return {
         template: data.template as Record<string, unknown>,
         inputs: data.inputs as Record<string, unknown>[],
+        options: data.options,
         templateDir: dirname(jobFilePath),
       };
     }

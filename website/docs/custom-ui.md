@@ -59,7 +59,7 @@ new Designer({
 });
 ```
 
-Create your own labels and use the i18n function from the plugin to retrieve the labels. Please refer to the implementation of the [Signature plugin](https://github.com/pdfme/pdfme/blob/main/playground/src/plugins/signature.ts) in the Playground code.
+Create your own labels and use the i18n function from the plugin to retrieve the labels. Please refer to the official [Signature plugin](https://github.com/pdfme/pdfme/blob/main/packages/schemas/src/graphics/signature.ts) implementation in `@pdfme/schemas`.
 
 ## UI Maximum Zoom Level
 

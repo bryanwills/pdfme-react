@@ -25,7 +25,7 @@ if ('barcodes' in schemas && typeof schemas.barcodes === 'object') {
 }
 
 const KNOWN_TEMPLATE_KEYS = new Set(['author', 'basePdf', 'columns', 'pdfmeVersion', 'schemas']);
-const KNOWN_JOB_KEYS = new Set(['template', 'inputs']);
+const KNOWN_JOB_KEYS = new Set(['template', 'inputs', 'options']);
 
 const validateArgs = {
   file: {
@@ -48,6 +48,7 @@ interface ValidationSource {
   mode: 'template' | 'job';
   template: Record<string, unknown>;
   inputs?: Record<string, unknown>[];
+  options?: unknown;
   templateDir?: string;
   jobWarnings: string[];
 }
@@ -204,6 +205,7 @@ export default defineCommand({
           checkGenerateProps({
             template: resolvedTemplate as any,
             inputs: source.inputs as any,
+            options: source.options as any,
           });
         } catch (error) {
           result.errors.unshift(error instanceof Error ? error.message : String(error));
@@ -261,6 +263,7 @@ async function loadValidationSource(file: string | undefined): Promise<Validatio
       mode: 'job',
       template: assertRecordObject(record.template, 'Unified job template'),
       inputs: record.inputs as Record<string, unknown>[],
+      options: record.options,
       templateDir: data.templateDir,
       jobWarnings: Object.keys(record)
         .filter((key) => !KNOWN_JOB_KEYS.has(key))

@@ -85,7 +85,7 @@ node packages/cli/dist/index.js --help
 # 分離形式: テンプレートと入力を別ファイルで指定
 pdfme generate -t template.json -i inputs.json -o out.pdf
 
-# 統合形式: { template, inputs } を含む 1 ファイル
+# 統合形式: { template, inputs, options? } を含む 1 ファイル
 pdfme generate job.json -o out.pdf --image
 
 # 既存 PDF をベースに、フィールドを重ねて生成
@@ -99,7 +99,7 @@ pdfme generate job.json -o out.pdf --image --json
 
 | フラグ | 型 | デフォルト | 説明 |
 |--------|------|-----------|------|
-| `[file]` | positional | - | 統合ファイル (`{ template, inputs }`) |
+| `[file]` | positional | - | 統合ファイル (`{ template, inputs, options? }`) |
 | `-t, --template` | string | - | テンプレート JSON ファイル |
 | `-i, --inputs` | string | - | 入力データ JSON ファイル |
 | `-o, --output` | string | `output.pdf` | 出力 PDF パス |
@@ -173,7 +173,16 @@ pdfme generate job.json -o out.pdf --image --json
   },
   "inputs": [
     { "customerName": "John Doe" }
-  ]
+  ],
+  "options": {
+    "font": {
+      "NotoSansJP": {
+        "data": "https://fonts.gstatic.com/...",
+        "fallback": false,
+        "subset": true
+      }
+    }
+  }
 }
 ```
 
@@ -188,7 +197,7 @@ pdfme generate job.json -o out.pdf --image --json
 
 ### スキーマ型一覧
 
-`text`, `multiVariableText`, `image`, `svg`, `table`, `qrcode`, `ean13`, `ean8`, `code39`, `code128`, `nw7`, `itf14`, `upca`, `upce`, `japanpost`, `gs1datamatrix`, `pdf417`, `line`, `rectangle`, `ellipse`, `date`, `dateTime`, `time`, `select`, `radioGroup`, `checkbox`
+`text`, `multiVariableText`, `image`, `signature`, `svg`, `table`, `qrcode`, `ean13`, `ean8`, `code39`, `code128`, `nw7`, `itf14`, `upca`, `upce`, `japanpost`, `gs1datamatrix`, `pdf417`, `line`, `rectangle`, `ellipse`, `date`, `dateTime`, `time`, `select`, `radioGroup`, `checkbox`
 
 ### --grid の出力
 
@@ -250,10 +259,10 @@ pdfme validate template.json --strict
 | 重複 | 異なるページ間の同名フィールド | WARNING |
 | 位置 | フィールドがページ境界外にはみ出し | WARNING |
 | basePdf | BlankPdf の場合、width/height/padding が妥当か | ERROR |
-| unified job | `template` / `inputs` の形が `generate` に渡せるか | ERROR |
+| unified job | `template` / `inputs` / `options` の形が `generate` に渡せるか | ERROR |
 | top-level | 未知の top-level field | WARNING |
 
-`validate` は template 単体だけでなく unified job (`{ template, inputs }`) も受理する。`--strict` を付けると warning も exit code 1 に昇格する。
+`validate` は template 単体だけでなく unified job (`{ template, inputs, options? }`) も受理する。`--strict` を付けると warning も exit code 1 に昇格する。
 
 型名が不正な場合、Levenshtein 距離に基づく修正候補を提示する:
 
@@ -345,6 +354,8 @@ pdfme examples --list --json
 # そのまま generate に渡せる
 pdfme examples invoice --withInputs -o job.json && pdfme generate job.json --image
 ```
+
+`--withInputs` で出力する job には、必要に応じて `options.font` が含まれる。official examples が使用するフォント URL を同梱するため、template 側の `fontName` と `generate` の入力契約がずれにくい。
 
 ### 組み込みテンプレート
 

@@ -59,7 +59,7 @@ new Designer({
 });
 ```
 
-独自のラベルを作成し、プラグインからi18n関数を使用してラベルを取得します。Playgroundコードの[署名プラグイン](https://github.com/pdfme/pdfme/blob/main/playground/src/plugins/signature.ts)の実装を参照してください。
+独自のラベルを作成し、プラグインからi18n関数を使用してラベルを取得します。`@pdfme/schemas` の公式[署名プラグイン](https://github.com/pdfme/pdfme/blob/main/packages/schemas/src/graphics/signature.ts)の実装を参照してください。
 
 ## UI最大ズームレベル
 

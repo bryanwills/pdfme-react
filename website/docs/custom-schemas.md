@@ -8,7 +8,7 @@ This page explains how to use schemas from `@pdfme/schemas` and how to create yo
 
 ## Using Schemas from @pdfme/schemas
 
-Here, we explain how to import image and QR code schemas from `@pdfme/schemas`.
+Here, we explain how to import image, signature, and QR code schemas from `@pdfme/schemas`.
 
 First, install `@pdfme/schemas`.
 
@@ -18,15 +18,15 @@ npm install @pdfme/schemas
 
 Next, import the required schemas from `@pdfme/schemas` to `@pdfme/generator` and `@pdfme/ui`.
 
-The following code shows an example of importing QR code and image schemas from `@pdfme/generator` and `@pdfme/ui`.
+The following code shows an example of importing QR code, signature, and image schemas from `@pdfme/generator` and `@pdfme/ui`.
 
 ```ts
 import type { Template } from '@pdfme/common';
-import { text, image, barcodes } from '@pdfme/schemas';
+import { text, image, signature, barcodes } from '@pdfme/schemas';
 import { generate } from '@pdfme/generator';
 
 const template: Template = {
-  // skip... you can use text, image, qrcode schema type in template.
+  // skip... you can use text, image, signature, qrcode schema type in template.
 };
 const inputs = [
   // skip...
@@ -39,6 +39,7 @@ const pdf = await generate({
   plugins: {
     text,
     image,
+    signature,
     qrcode: barcodes.qrcode,
   },
 });
@@ -48,12 +49,12 @@ In this `@pdfme/ui` example, we're using the Designer, but you can load plugins 
 
 ```ts
 import type { Template } from '@pdfme/common';
-import { text, image, barcodes } from '@pdfme/schemas';
+import { text, image, signature, barcodes } from '@pdfme/schemas';
 import { Designer } from '@pdfme/ui';
 
 const domContainer = document.getElementById('container');
 const template: Template = {
-  // skip... you can use text, image, qrcode schema type in template.
+  // skip... you can use text, image, signature, qrcode schema type in template.
 };
 
 const designer = new Designer({
@@ -63,12 +64,13 @@ const designer = new Designer({
   plugins: {
     text,
     image,
+    signature,
     qrcode: barcodes.qrcode,
   },
 });
 ```
 
-By loading image and qrcode as plugins, you can render schemas of type image and qrcode found in your template's schemas.
+By loading image, signature, and qrcode as plugins, you can render schemas of type image, signature, and qrcode found in your template's schemas.
 
 ![](/img/custom-schemas.png)
 
@@ -145,7 +147,7 @@ Specifically, it should be possible to input the signature using [signature_pad]
 [![](/img/signature-schema.gif)](https://playground.pdfme.com/)
 
 - Demo: https://playground.pdfme.com/
-- Code: [playground/src/plugins/signature.ts](https://github.com/pdfme/pdfme/blob/main/playground/src/plugins/signature.ts)
+- Code: [packages/schemas/src/graphics/signature.ts](https://github.com/pdfme/pdfme/blob/main/packages/schemas/src/graphics/signature.ts)
 
 
 ### Caveats for writing Custom Schemas

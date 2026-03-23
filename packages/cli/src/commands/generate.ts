@@ -2,7 +2,7 @@ import { defineCommand } from 'citty';
 import { generate } from '@pdfme/generator';
 import { pdf2img, pdf2size } from '@pdfme/converter';
 import { checkGenerateProps, isBlankPdf } from '@pdfme/common';
-import type { Template } from '@pdfme/common';
+import type { Font, Template } from '@pdfme/common';
 import * as schemas from '@pdfme/schemas';
 import {
   assertNoUnknownFlags,
@@ -39,7 +39,7 @@ const allPlugins = {
   select: schemas.select,
   radioGroup: schemas.radioGroup,
   checkbox: schemas.checkbox,
-  ...('signature' in schemas ? { signature: (schemas as Record<string, unknown>).signature } : {}),
+  signature: schemas.signature,
 };
 
 const generateArgs = {
@@ -102,23 +102,14 @@ export default defineCommand({
         force: Boolean(args.force),
       });
 
-      const { template: rawTemplate, inputs, templateDir } = loadInput({
+      const { template: rawTemplate, inputs, options: rawJobOptions, templateDir } = loadInput({
         _: args.file ? [args.file] : [],
         template: args.template,
         inputs: args.inputs,
       });
 
       const template = resolveBasePdf(rawTemplate, args.basePdf, templateDir) as unknown as Template;
-
-      try {
-        checkGenerateProps({ template, inputs });
-      } catch (error) {
-        fail(`Invalid generation input. ${error instanceof Error ? error.message : String(error)}`, {
-          code: 'EVALIDATE',
-          exitCode: 1,
-          cause: error,
-        });
-      }
+      const jobOptions = normalizeJobOptions(rawJobOptions);
 
       const fontArgs = args.font
         ? args.font
@@ -128,7 +119,19 @@ export default defineCommand({
         : undefined;
 
       const hasCJK = detectCJKInTemplate(template as any) || detectCJKInInputs(inputs);
-      const font = await resolveFont(fontArgs, hasCJK, args.noAutoFont, args.verbose);
+      const resolvedFont = await resolveFont(fontArgs, hasCJK, args.noAutoFont, args.verbose);
+      const font = mergeFontConfig(jobOptions.font, resolvedFont);
+      const generateOptions = { ...jobOptions, font };
+
+      try {
+        checkGenerateProps({ template, inputs, options: generateOptions });
+      } catch (error) {
+        fail(`Invalid generation input. ${error instanceof Error ? error.message : String(error)}`, {
+          code: 'EVALIDATE',
+          exitCode: 1,
+          cause: error,
+        });
+      }
 
       if (args.verbose) {
         console.error(`Template: ${template.schemas?.length ?? 0} page(s)`);
@@ -139,7 +142,7 @@ export default defineCommand({
       const pdf = await generate({
         template,
         inputs,
-        options: { font },
+        options: generateOptions,
         plugins: allPlugins as Record<string, any>,
       });
 
@@ -217,4 +220,37 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function normalizeJobOptions(rawJobOptions: unknown): Record<string, unknown> {
+  if (rawJobOptions === undefined) {
+    return {};
+  }
+
+  if (typeof rawJobOptions !== 'object' || rawJobOptions === null || Array.isArray(rawJobOptions)) {
+    fail('Unified job options must be a JSON object.', {
+      code: 'EARG',
+      exitCode: 1,
+    });
+  }
+
+  return rawJobOptions as Record<string, unknown>;
+}
+
+function mergeFontConfig(jobFont: unknown, resolvedFont: Font): Font {
+  if (jobFont === undefined) {
+    return resolvedFont;
+  }
+
+  if (typeof jobFont !== 'object' || jobFont === null || Array.isArray(jobFont)) {
+    fail('Unified job options.font must be an object.', {
+      code: 'EARG',
+      exitCode: 1,
+    });
+  }
+
+  return {
+    ...(jobFont as Font),
+    ...resolvedFont,
+  };
 }

@@ -1,20 +1,8 @@
 import generate from '../src/generate.js';
 import { other } from './assets/templates/index.js';
 import { getInputFromTemplate } from '@pdfme/common';
-import { text, image, svg, line, rectangle, ellipse, barcodes } from '@pdfme/schemas';
+import { text, image, signature, svg, line, rectangle, ellipse, barcodes } from '@pdfme/schemas';
 import { getFont, getImageSnapshotOptions, pdfToImages } from './utils.js';
-
-const signature = {
-  pdf: image.pdf,
-  ui: () => {},
-  propPanel: {
-    ...image.propPanel,
-    defaultSchema: {
-      ...image.propPanel.defaultSchema,
-      type: 'signature',
-    },
-  },
-};
 
 const PERFORMANCE_THRESHOLD = parseFloat(process.env.PERFORMANCE_THRESHOLD || '1.5');
 

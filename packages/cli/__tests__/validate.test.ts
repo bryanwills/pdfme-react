@@ -127,10 +127,29 @@ describe('validate command', () => {
         template: {
           basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
           schemas: [[
-            { name: 'title', type: 'text', position: { x: 20, y: 20 }, width: 170, height: 15 },
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'NotoSerifJP',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
           ]],
         },
         inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            Roboto: {
+              data: 'https://fonts.example.com/Roboto.ttf',
+              fallback: true,
+            },
+            NotoSerifJP: {
+              data: 'https://fonts.example.com/NotoSerifJP.ttf',
+              fallback: false,
+            },
+          },
+        },
       }),
     );
 

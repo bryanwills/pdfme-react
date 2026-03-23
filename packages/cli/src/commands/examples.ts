@@ -11,6 +11,7 @@ import {
   getExampleManifest,
   getExamplesBaseUrl,
 } from '../example-templates.js';
+import { getOfficialExampleFonts } from '../example-fonts.js';
 
 const examplesArgs = {
   name: { type: 'positional' as const, description: 'Template name to output', required: false },
@@ -35,10 +36,19 @@ function generateSampleInputs(template: Record<string, unknown>): Record<string,
   if (!Array.isArray(schemas) || schemas.length === 0) return [{}];
 
   const firstPage = schemas[0];
-  if (!Array.isArray(firstPage)) return [{}];
+  const fields: Record<string, unknown>[] = Array.isArray(firstPage)
+    ? (firstPage as Record<string, unknown>[])
+    : typeof firstPage === 'object' && firstPage !== null
+      ? Object.entries(firstPage).map(([name, schema]) => ({
+          ...(typeof schema === 'object' && schema !== null ? schema : {}),
+          name,
+        }))
+      : [];
+
+  if (fields.length === 0) return [{}];
 
   const input: Record<string, string> = {};
-  for (const schema of firstPage) {
+  for (const schema of fields) {
     if (typeof schema !== 'object' || schema === null) continue;
     const name = schema.name as string;
     const content = schema.content as string | undefined;
@@ -100,9 +110,7 @@ export default defineCommand({
         manifest: manifestResult.manifest,
       });
 
-      const output = args.withInputs
-        ? { template: templateResult.template, inputs: generateSampleInputs(templateResult.template) }
-        : templateResult.template;
+      const output = args.withInputs ? buildExampleJob(templateResult.template) : templateResult.template;
 
       if (args.output) {
         writeOutput(args.output, new TextEncoder().encode(JSON.stringify(output, null, 2)));
@@ -136,3 +144,17 @@ export default defineCommand({
     });
   },
 });
+
+function buildExampleJob(template: Record<string, unknown>): Record<string, unknown> {
+  const job: Record<string, unknown> = {
+    template,
+    inputs: generateSampleInputs(template),
+  };
+
+  const font = getOfficialExampleFonts(template);
+  if (font) {
+    job.options = { font };
+  }
+
+  return job;
+}

@@ -11,6 +11,7 @@ import {
   text,
   barcodes,
   image,
+  signature,
   svg,
   line,
   table,
@@ -49,21 +50,7 @@ const plugins = {
   select,
   checkbox,
   radioGroup,
-  signature: {
-    ui: async () => {},
-    pdf: image.pdf,
-    propPanel: {
-      schema: {},
-      defaultSchema: {
-        name: '',
-        type: 'signature',
-        content: '',
-        position: { x: 0, y: 0 },
-        width: 62.5,
-        height: 37.5,
-      },
-    },
-  },
+  signature,
 };
 
 const font = {

@@ -7,6 +7,7 @@ import { getInputFromTemplate } from '@pdfme/common';
 import {
   text,
   image,
+  signature,
   svg,
   line,
   rectangle,
@@ -18,18 +19,6 @@ import {
 import { getFont, getImageSnapshotOptions, pdfToImages } from './utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const signature = {
-  pdf: image.pdf,
-  ui: () => {},
-  propPanel: {
-    ...image.propPanel,
-    defaultSchema: {
-      ...image.propPanel.defaultSchema,
-      type: 'signature',
-    },
-  },
-};
 
 const PERFORMANCE_THRESHOLD = parseFloat(process.env.PERFORMANCE_THRESHOLD || '1.5');
 
