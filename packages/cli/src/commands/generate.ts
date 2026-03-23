@@ -4,7 +4,21 @@ import { pdf2img, pdf2size } from '@pdfme/converter';
 import { checkGenerateProps, isBlankPdf } from '@pdfme/common';
 import type { Template } from '@pdfme/common';
 import * as schemas from '@pdfme/schemas';
-import { loadInput, resolveBasePdf, getImageOutputPaths, writeOutput } from '../utils.js';
+import {
+  assertNoUnknownFlags,
+  fail,
+  parseEnumArg,
+  parsePositiveNumberArg,
+  printJson,
+  runWithContract,
+} from '../contract.js';
+import {
+  ensureSafeDefaultOutputPath,
+  getImageOutputPaths,
+  loadInput,
+  resolveBasePdf,
+  writeOutput,
+} from '../utils.js';
 import { resolveFont } from '../fonts.js';
 import { detectCJKInTemplate, detectCJKInInputs } from '../cjk-detect.js';
 import { drawGridOnImage } from '../grid.js';
@@ -25,6 +39,44 @@ const allPlugins = {
   select: schemas.select,
   radioGroup: schemas.radioGroup,
   checkbox: schemas.checkbox,
+  ...('signature' in schemas ? { signature: (schemas as Record<string, unknown>).signature } : {}),
+};
+
+const generateArgs = {
+  file: {
+    type: 'positional' as const,
+    description: 'Unified JSON file: { template, inputs }',
+    required: false,
+  },
+  template: { type: 'string' as const, alias: 't', description: 'Template JSON file' },
+  inputs: { type: 'string' as const, alias: 'i', description: 'Input data JSON file' },
+  output: { type: 'string' as const, alias: 'o', description: 'Output PDF path', default: 'output.pdf' },
+  force: {
+    type: 'boolean' as const,
+    description: 'Allow overwriting the implicit default output path',
+    default: false,
+  },
+  image: { type: 'boolean' as const, description: 'Also output PNG images per page', default: false },
+  imageFormat: { type: 'string' as const, description: 'Image format: png | jpeg', default: 'png' },
+  scale: { type: 'string' as const, description: 'Image render scale', default: '1' },
+  grid: {
+    type: 'boolean' as const,
+    description: 'Overlay grid + schema boundaries on images',
+    default: false,
+  },
+  gridSize: { type: 'string' as const, description: 'Grid spacing in mm', default: '10' },
+  font: {
+    type: 'string' as const,
+    description: 'Custom font(s): name=path (comma-separated for multiple)',
+  },
+  basePdf: { type: 'string' as const, description: 'Override basePdf with PDF file path' },
+  noAutoFont: {
+    type: 'boolean' as const,
+    description: 'Disable automatic CJK font download',
+    default: false,
+  },
+  verbose: { type: 'boolean' as const, alias: 'v', description: 'Verbose output', default: false },
+  json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
 };
 
 export default defineCommand({
@@ -32,63 +84,58 @@ export default defineCommand({
     name: 'generate',
     description: 'Generate PDF from template and inputs',
   },
-  args: {
-    file: { type: 'positional', description: 'Unified JSON file: { template, inputs }', required: false },
-    template: { type: 'string', alias: 't', description: 'Template JSON file' },
-    inputs: { type: 'string', alias: 'i', description: 'Input data JSON file' },
-    output: { type: 'string', alias: 'o', description: 'Output PDF path', default: 'output.pdf' },
-    image: { type: 'boolean', description: 'Also output PNG images per page', default: false },
-    imageFormat: { type: 'string', description: 'Image format: png | jpeg', default: 'png' },
-    scale: { type: 'string', description: 'Image render scale', default: '1' },
-    grid: { type: 'boolean', description: 'Overlay grid + schema boundaries on images', default: false },
-    gridSize: { type: 'string', description: 'Grid spacing in mm', default: '10' },
-    // Note: citty does not support repeated string args natively.
-    // For multiple fonts, use a comma-separated value: --font "A=a.ttf,B=b.ttf"
-    font: { type: 'string', description: 'Custom font(s): name=path (comma-separated for multiple)' },
-    basePdf: { type: 'string', description: 'Override basePdf with PDF file path' },
-    noAutoFont: { type: 'boolean', description: 'Disable automatic CJK font download', default: false },
-    verbose: { type: 'boolean', alias: 'v', description: 'Verbose output', default: false },
-    json: { type: 'boolean', description: 'Machine-readable JSON output', default: false },
-  },
-  async run({ args }) {
-    const { template: rawTemplate, inputs, templateDir } = loadInput({
-      _: args.file ? [args.file] : [],
-      template: args.template,
-      inputs: args.inputs,
-    });
+  args: generateArgs,
+  async run({ args, rawArgs }) {
+    return runWithContract({ json: Boolean(args.json) }, async () => {
+      assertNoUnknownFlags(rawArgs, generateArgs);
 
-    const template = resolveBasePdf(
-      rawTemplate,
-      args.basePdf,
-      templateDir,
-    ) as unknown as Template;
+      const imageFormat = parseEnumArg('imageFormat', args.imageFormat, ['png', 'jpeg']);
+      const scale = parsePositiveNumberArg('scale', args.scale);
+      const gridSize = parsePositiveNumberArg('gridSize', args.gridSize);
 
-    try {
-      checkGenerateProps({ template, inputs });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error: Invalid generation input.\n${message}`);
-      process.exit(1);
-    }
+      ensureSafeDefaultOutputPath({
+        filePath: args.output,
+        rawArgs,
+        optionName: 'output',
+        optionAlias: 'o',
+        defaultValue: 'output.pdf',
+        force: Boolean(args.force),
+      });
 
-    // Parse --font: supports comma-separated "A=a.ttf,B=b.ttf"
-    const fontArgs = args.font ? args.font.split(',').map((s: string) => s.trim()) : undefined;
+      const { template: rawTemplate, inputs, templateDir } = loadInput({
+        _: args.file ? [args.file] : [],
+        template: args.template,
+        inputs: args.inputs,
+      });
 
-    const hasCJK = detectCJKInTemplate(template as any) || detectCJKInInputs(inputs);
-    const font = await resolveFont(
-      fontArgs,
-      hasCJK,
-      args.noAutoFont,
-      args.verbose,
-    );
+      const template = resolveBasePdf(rawTemplate, args.basePdf, templateDir) as unknown as Template;
 
-    if (args.verbose) {
-      console.error(`Template: ${template.schemas?.length ?? 0} page(s)`);
-      console.error(`Inputs: ${inputs.length} set(s)`);
-      console.error(`Fonts: ${Object.keys(font).join(', ')}`);
-    }
+      try {
+        checkGenerateProps({ template, inputs });
+      } catch (error) {
+        fail(`Invalid generation input. ${error instanceof Error ? error.message : String(error)}`, {
+          code: 'EVALIDATE',
+          exitCode: 1,
+          cause: error,
+        });
+      }
 
-    try {
+      const fontArgs = args.font
+        ? args.font
+            .split(',')
+            .map((value: string) => value.trim())
+            .filter(Boolean)
+        : undefined;
+
+      const hasCJK = detectCJKInTemplate(template as any) || detectCJKInInputs(inputs);
+      const font = await resolveFont(fontArgs, hasCJK, args.noAutoFont, args.verbose);
+
+      if (args.verbose) {
+        console.error(`Template: ${template.schemas?.length ?? 0} page(s)`);
+        console.error(`Inputs: ${inputs.length} set(s)`);
+        console.error(`Fonts: ${Object.keys(font).join(', ')}`);
+      }
+
       const pdf = await generate({
         template,
         inputs,
@@ -104,26 +151,17 @@ export default defineCommand({
       };
 
       if (args.image || args.grid) {
-        const scale = Number.parseFloat(args.scale);
-        const imageFormat = args.imageFormat as 'png' | 'jpeg';
         const images = await pdf2img(pdf, { scale, imageType: imageFormat });
-        const imagePaths = getImageOutputPaths(args.output, images.length, args.imageFormat);
-
-        // Actual page count from rendered images (accounts for dynamic layouts)
+        const imagePaths = getImageOutputPaths(args.output, images.length, imageFormat);
         result.pages = images.length;
 
-        // Resolve page dimensions for grid overlay.
-        // For custom PDF basePdf, use pdf2size to get actual dimensions.
         let pageSizes: Array<{ width: number; height: number }> | null = null;
 
         if (args.grid) {
-          const gridSize = Number.parseFloat(args.gridSize);
-
           if (isBlankPdf(template.basePdf)) {
             const bpdf = template.basePdf as { width: number; height: number };
             pageSizes = images.map(() => ({ width: bpdf.width, height: bpdf.height }));
           } else {
-            // Custom PDF: get actual page sizes from the generated PDF
             pageSizes = await pdf2size(pdf);
           }
 
@@ -158,14 +196,11 @@ export default defineCommand({
 
         result.images = imagePaths;
       } else {
-        // Without --image, estimate page count from template structure
-        result.pages = template.schemas?.length
-          ? inputs.length * template.schemas.length
-          : 0;
+        result.pages = template.schemas?.length ? inputs.length * template.schemas.length : 0;
       }
 
       if (args.json) {
-        console.log(JSON.stringify(result, null, 2));
+        printJson({ ok: true, ...result });
       } else {
         console.log(`\u2713 PDF: ${args.output} (${formatBytes(pdf.byteLength)})`);
         if (result.images) {
@@ -174,11 +209,7 @@ export default defineCommand({
           }
         }
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error: PDF generation failed.\n${message}`);
-      process.exit(2);
-    }
+    });
   },
 });
 

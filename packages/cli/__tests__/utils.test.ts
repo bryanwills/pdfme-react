@@ -40,12 +40,12 @@ describe('parsePageRange', () => {
     expect(parsePageRange('1-2,4', 5)).toEqual([1, 2, 4]);
   });
 
-  it('clamps to total pages', () => {
-    expect(parsePageRange('1-10', 3)).toEqual([1, 2, 3]);
+  it('rejects out-of-range segments', () => {
+    expect(() => parsePageRange('1-10', 3)).toThrow('Pages must be between 1 and 3');
   });
 
-  it('ignores out of range', () => {
-    expect(parsePageRange('0,6', 3)).toEqual([]);
+  it('rejects invalid tokens', () => {
+    expect(() => parsePageRange('nope', 3)).toThrow('Invalid page range segment');
   });
 });
 

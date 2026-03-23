@@ -8,11 +8,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, '..', 'dist', 'index.js');
 const TMP = join(__dirname, '..', '.test-tmp');
 
-function runCli(args: string[]): { stdout: string; stderr: string; exitCode: number } {
+function runCli(
+  args: string[],
+  options: { input?: string } = {},
+): { stdout: string; stderr: string; exitCode: number } {
   try {
     const stdout = execFileSync('node', [CLI, ...args], {
       encoding: 'utf8',
       timeout: 30000,
+      input: options.input,
     });
     return { stdout, stderr: '', exitCode: 0 };
   } catch (error: any) {
@@ -109,8 +113,67 @@ describe('validate command', () => {
     const result = runCli(['validate', file, '--json']);
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
     expect(parsed.valid).toBe(true);
     expect(parsed.pages).toBe(1);
     expect(parsed.fields).toBe(1);
+  });
+
+  it('accepts unified job files', () => {
+    const file = join(TMP, 'job.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            { name: 'title', type: 'text', position: { x: 20, y: 20 }, width: 170, height: 15 },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.mode).toBe('job');
+    expect(parsed.valid).toBe(true);
+  });
+
+  it('accepts stdin input', () => {
+    const result = runCli(['validate', '-', '--json'], {
+      input: JSON.stringify({
+        basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+        schemas: [[
+          { name: 'title', type: 'text', position: { x: 20, y: 20 }, width: 170, height: 15 },
+        ]],
+      }),
+    });
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.mode).toBe('template');
+    expect(parsed.valid).toBe(true);
+  });
+
+  it('rejects unknown flags with structured JSON output', () => {
+    const template = {
+      basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+      schemas: [[
+        { name: 'title', type: 'text', position: { x: 20, y: 20 }, width: 170, height: 15 },
+      ]],
+    };
+    const file = join(TMP, 'unknown-flag.json');
+    writeFileSync(file, JSON.stringify(template));
+
+    const result = runCli(['validate', file, '--bogus', '--json']);
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EARG');
+    expect(parsed.error.message).toContain('Unknown argument');
   });
 });

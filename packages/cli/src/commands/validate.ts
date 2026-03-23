@@ -1,16 +1,22 @@
+import { dirname, resolve } from 'node:path';
 import { defineCommand } from 'citty';
-import { checkTemplate } from '@pdfme/common';
+import { checkGenerateProps, checkTemplate } from '@pdfme/common';
 import * as schemas from '@pdfme/schemas';
-import { readJsonFile } from '../utils.js';
+import {
+  assertNoUnknownFlags,
+  fail,
+  printJson,
+  runWithContract,
+} from '../contract.js';
+import { readJsonFile, readJsonFromStdin, resolveBasePdf } from '../utils.js';
 
 // Filter to only actual schema plugins (objects with pdf/ui/propPanel).
 // Excludes utility exports like getDynamicHeightsForTable, builtInPlugins.
 const BUILTIN_TYPES = new Set(
   Object.entries(schemas)
-    .filter(([, v]) => v && typeof v === 'object' && 'pdf' in v)
-    .map(([k]) => k),
+    .filter(([, value]) => value && typeof value === 'object' && 'pdf' in value)
+    .map(([key]) => key),
 );
-// barcodes is a collection — expand its individual types
 if ('barcodes' in schemas && typeof schemas.barcodes === 'object') {
   BUILTIN_TYPES.delete('barcodes');
   for (const key of Object.keys(schemas.barcodes as Record<string, unknown>)) {
@@ -18,11 +24,32 @@ if ('barcodes' in schemas && typeof schemas.barcodes === 'object') {
   }
 }
 
+const KNOWN_TEMPLATE_KEYS = new Set(['author', 'basePdf', 'columns', 'pdfmeVersion', 'schemas']);
+const KNOWN_JOB_KEYS = new Set(['template', 'inputs']);
+
+const validateArgs = {
+  file: {
+    type: 'positional' as const,
+    description: 'Template JSON file, unified job file, or "-" for stdin',
+    required: false,
+  },
+  json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
+  strict: { type: 'boolean' as const, description: 'Treat warnings as errors', default: false },
+};
+
 interface ValidationResult {
   errors: string[];
   warnings: string[];
   pages: number;
   fields: number;
+}
+
+interface ValidationSource {
+  mode: 'template' | 'job';
+  template: Record<string, unknown>;
+  inputs?: Record<string, unknown>[];
+  templateDir?: string;
+  jobWarnings: string[];
 }
 
 function findClosestType(type: string): string | null {
@@ -61,7 +88,6 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
   const warnings: string[] = [];
   let totalFields = 0;
 
-  // Structural validation via checkTemplate
   try {
     checkTemplate(template);
   } catch (error) {
@@ -73,7 +99,6 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
     return { errors, warnings, pages: 0, fields: 0 };
   }
 
-  // Get page dimensions for bounds checking
   let pageWidth = 210;
   let pageHeight = 297;
   if (template.basePdf && typeof template.basePdf === 'object' && 'width' in (template.basePdf as object)) {
@@ -81,7 +106,7 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
     pageHeight = (template.basePdf as { height: number }).height;
   }
 
-  const allNames = new Map<string, number[]>(); // name → page indices
+  const allNames = new Map<string, number[]>();
 
   for (let pageIdx = 0; pageIdx < schemaPages.length; pageIdx++) {
     const page = schemaPages[pageIdx];
@@ -99,7 +124,6 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
       const width = schema.width as number | undefined;
       const height = schema.height as number | undefined;
 
-      // Type check
       if (type && !BUILTIN_TYPES.has(type)) {
         const suggestion = findClosestType(type);
         const hint = suggestion ? ` Did you mean: ${suggestion}?` : '';
@@ -108,17 +132,16 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
         );
       }
 
-      // Duplicate name on same page
       if (name && pageNames.has(name)) {
         errors.push(`Duplicate field name "${name}" on page ${pageIdx + 1}`);
       }
+
       if (name) {
         pageNames.add(name);
         if (!allNames.has(name)) allNames.set(name, []);
         allNames.get(name)!.push(pageIdx + 1);
       }
 
-      // Bounds check
       if (position && width !== undefined && height !== undefined) {
         if (position.x + width > pageWidth + 1) {
           warnings.push(
@@ -137,7 +160,6 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
     }
   }
 
-  // Cross-page duplicate names
   for (const [name, pages] of allNames) {
     if (pages.length > 1) {
       warnings.push(`Field name "${name}" appears on multiple pages: ${pages.join(', ')}`);
@@ -152,48 +174,134 @@ export default defineCommand({
     name: 'validate',
     description: 'Validate a pdfme template JSON file',
   },
-  args: {
-    file: { type: 'positional', description: 'Template JSON file', required: true },
-    json: { type: 'boolean', description: 'Machine-readable JSON output', default: false },
-    strict: { type: 'boolean', description: 'Treat warnings as errors', default: false },
-  },
-  run({ args }) {
-    const template = readJsonFile(args.file) as Record<string, unknown>;
-    const result = validateTemplate(template);
+  args: validateArgs,
+  async run({ args, rawArgs }) {
+    return runWithContract({ json: Boolean(args.json) }, async () => {
+      assertNoUnknownFlags(rawArgs, validateArgs);
 
-    if (args.json) {
-      console.log(
-        JSON.stringify(
-          {
-            valid: result.errors.length === 0 && (!args.strict || result.warnings.length === 0),
-            pages: result.pages,
-            fields: result.fields,
-            errors: result.errors,
-            warnings: result.warnings,
-          },
-          null,
-          2,
-        ),
-      );
-    } else {
-      if (result.errors.length === 0 && result.warnings.length === 0) {
-        console.log(
-          `\u2713 Template is valid (${result.pages} page(s), ${result.fields} field(s))`,
+      const source = await loadValidationSource(args.file);
+      const templateUnknownKeys = Object.keys(source.template)
+        .filter((key) => !KNOWN_TEMPLATE_KEYS.has(key))
+        .sort();
+
+      const resolvedTemplate = resolveBasePdf(
+        source.template,
+        undefined,
+        source.templateDir,
+      ) as Record<string, unknown>;
+
+      const result = validateTemplate(resolvedTemplate);
+      result.warnings.push(...source.jobWarnings);
+
+      if (templateUnknownKeys.length > 0) {
+        result.warnings.push(
+          `Unknown template top-level field(s): ${templateUnknownKeys.join(', ')}`,
         );
       }
-      for (const err of result.errors) {
-        console.log(`\u2717 Error: ${err}`);
-      }
-      for (const warn of result.warnings) {
-        console.log(`\u26a0 Warning: ${warn}`);
-      }
-    }
 
-    if (result.errors.length > 0) {
-      process.exit(1);
-    }
-    if (args.strict && result.warnings.length > 0) {
-      process.exit(1);
-    }
+      if (source.mode === 'job') {
+        try {
+          checkGenerateProps({
+            template: resolvedTemplate as any,
+            inputs: source.inputs as any,
+          });
+        } catch (error) {
+          result.errors.unshift(error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      const valid = result.errors.length === 0 && (!args.strict || result.warnings.length === 0);
+
+      if (args.json) {
+        printJson({
+          ok: true,
+          valid,
+          mode: source.mode,
+          pages: result.pages,
+          fields: result.fields,
+          errors: result.errors,
+          warnings: result.warnings,
+        });
+      } else {
+        if (result.errors.length === 0 && result.warnings.length === 0) {
+          console.log(
+            `\u2713 Template is valid (${result.pages} page(s), ${result.fields} field(s))`,
+          );
+        }
+        for (const err of result.errors) {
+          console.log(`\u2717 Error: ${err}`);
+        }
+        for (const warn of result.warnings) {
+          console.log(`\u26a0 Warning: ${warn}`);
+        }
+      }
+
+      if (!valid) {
+        process.exit(1);
+      }
+    });
   },
 });
+
+async function loadValidationSource(file: string | undefined): Promise<ValidationSource> {
+  const data = await loadValidationInput(file);
+  const record = assertRecordObject(data.json, 'Validation input');
+  const hasTemplate = 'template' in record;
+  const hasInputs = 'inputs' in record;
+
+  if (hasTemplate || hasInputs) {
+    if (!hasTemplate || !hasInputs) {
+      fail('Unified job validation requires both "template" and "inputs" keys.', {
+        code: 'EARG',
+        exitCode: 1,
+      });
+    }
+
+    return {
+      mode: 'job',
+      template: assertRecordObject(record.template, 'Unified job template'),
+      inputs: record.inputs as Record<string, unknown>[],
+      templateDir: data.templateDir,
+      jobWarnings: Object.keys(record)
+        .filter((key) => !KNOWN_JOB_KEYS.has(key))
+        .sort()
+        .map((key) => `Unknown unified job field: ${key}`),
+    };
+  }
+
+  return {
+    mode: 'template',
+    template: assertRecordObject(record, 'Template'),
+    templateDir: data.templateDir,
+    jobWarnings: [],
+  };
+}
+
+async function loadValidationInput(
+  file: string | undefined,
+): Promise<{ json: unknown; templateDir?: string }> {
+  if (!file || file === '-') {
+    if (file === '-' || !process.stdin.isTTY) {
+      return { json: await readJsonFromStdin() };
+    }
+
+    fail('No validation input provided. Pass a file path or pipe JSON via stdin.', {
+      code: 'EARG',
+      exitCode: 1,
+    });
+  }
+
+  const resolvedFile = resolve(file);
+  return {
+    json: readJsonFile(resolvedFile),
+    templateDir: dirname(resolvedFile),
+  };
+}
+
+function assertRecordObject(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    fail(`${label} must be a JSON object.`, { code: 'EARG', exitCode: 1 });
+  }
+
+  return value as Record<string, unknown>;
+}

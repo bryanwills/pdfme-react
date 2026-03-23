@@ -129,4 +129,80 @@ describe('generate command', () => {
     expect(output[1]).toBe(0xd8);
     expect(output[2]).toBe(0xff);
   });
+
+  it('returns structured JSON for argument validation failures', () => {
+    const workDir = join(TMP, 'bad-scale');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+      }),
+    );
+
+    const result = runCli([
+      'generate',
+      join(workDir, 'job.json'),
+      '--scale',
+      'nope',
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EARG');
+    expect(parsed.error.message).toContain('--scale');
+  });
+
+  it('refuses to overwrite implicit default output.pdf without --force', () => {
+    const workDir = join(TMP, 'default-output-safety');
+    mkdirSync(workDir, { recursive: true });
+
+    const previousCwd = process.cwd();
+    process.chdir(workDir);
+
+    try {
+      writeFileSync('output.pdf', 'existing file');
+      writeFileSync(
+        'job.json',
+        JSON.stringify({
+          template: {
+            basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+            schemas: [[
+              {
+                name: 'title',
+                type: 'text',
+                position: { x: 20, y: 20 },
+                width: 100,
+                height: 10,
+              },
+            ]],
+          },
+          inputs: [{ title: 'Hello' }],
+        }),
+      );
+
+      const result = runCli(['generate', 'job.json', '--json']);
+      expect(result.exitCode).toBe(1);
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed.ok).toBe(false);
+      expect(parsed.error.message).toContain('Refusing to overwrite implicit default output file');
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
 });

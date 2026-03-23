@@ -1,8 +1,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 import { getDefaultFont } from '@pdfme/common';
 import type { Font } from '@pdfme/common';
+import { fail } from './contract.js';
 
 const CACHE_DIR = join(homedir(), '.pdfme', 'fonts');
 const NOTO_SANS_JP_URL =
@@ -49,17 +50,25 @@ export function parseCustomFonts(fontArgs: string[]): Font {
     const arg = fontArgs[i];
     const eqIndex = arg.indexOf('=');
     if (eqIndex === -1) {
-      console.error(
-        `Error: Invalid --font format "${arg}". Expected: name=path (e.g., "NotoSansJP=./fonts/NotoSansJP.ttf")`,
+      fail(
+        `Invalid --font format ${JSON.stringify(arg)}. Expected name=path, for example "NotoSansJP=./fonts/NotoSansJP.ttf".`,
+        { code: 'EARG', exitCode: 1 },
       );
-      process.exit(1);
     }
     const name = arg.slice(0, eqIndex);
-    const filePath = arg.slice(eqIndex + 1);
+    const filePath = resolve(arg.slice(eqIndex + 1));
     if (!existsSync(filePath)) {
-      console.error(`Error: Font file not found: ${filePath}`);
-      process.exit(1);
+      fail(`Font file not found: ${filePath}`, { code: 'EIO', exitCode: 3 });
     }
+
+    const extension = extname(filePath).toLowerCase();
+    if (extension !== '.ttf') {
+      fail(
+        `Unsupported font format for ${filePath}. @pdfme/cli currently guarantees only .ttf custom fonts.`,
+        { code: 'EUNSUPPORTED', exitCode: 1 },
+      );
+    }
+
     font[name] = {
       data: new Uint8Array(readFileSync(filePath)) as Uint8Array<ArrayBuffer>,
       fallback: i === 0,
@@ -95,4 +104,3 @@ export async function resolveFont(
 
   return defaultFont;
 }
-

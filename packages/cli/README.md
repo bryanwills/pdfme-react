@@ -23,6 +23,7 @@ JSON 編集 → pdfme generate --image → PNG 読み取り → 視覚確認 →
 ### 設計原則
 
 - **AI エージェント特化**: `--json` フラグで構造化出力、`--help` に豊富な使用例、エラーメッセージに修正案を含める
+- **machine interface 優先**: `--json` 指定時は stdout を JSON のみに固定し、失敗時も構造化エラーを返す
 - **日本語ユーザー対応**: CJK 文字を検出すると NotoSansJP を自動ダウンロード＆キャッシュ
 - **既存 PDF からのテンプレート作成ワークフロー**: `pdf2img` → `pdf2size` → テンプレート作成 → `generate --image` の一連フローをサポート
 - **npx でもローカルでも同等の体験**
@@ -102,6 +103,7 @@ pdfme generate job.json -o out.pdf --image --json
 | `-t, --template` | string | - | テンプレート JSON ファイル |
 | `-i, --inputs` | string | - | 入力データ JSON ファイル |
 | `-o, --output` | string | `output.pdf` | 出力 PDF パス |
+| `--force` | boolean | false | 暗黙の `output.pdf` 上書きを許可 |
 | `--image` | boolean | false | 各ページの PNG 画像も出力 |
 | `--imageFormat` | string | `png` | 画像フォーマット (`png` / `jpeg`) |
 | `--scale` | string | `1` | 画像レンダリングスケール |
@@ -112,6 +114,33 @@ pdfme generate job.json -o out.pdf --image --json
 | `--noAutoFont` | boolean | false | CJK フォント自動ダウンロードを無効化 |
 | `-v, --verbose` | boolean | false | 詳細出力 |
 | `--json` | boolean | false | 構造化 JSON 出力 |
+
+### `--json` 契約
+
+`--json` を指定すると、成功時も失敗時も stdout には JSON のみを出力する。人間向けの補足や warning は stderr に寄せる。
+
+成功例:
+
+```json
+{
+  "ok": true,
+  "pdf": "out.pdf",
+  "size": 12345,
+  "pages": 1
+}
+```
+
+失敗例:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "EARG",
+    "message": "Invalid value for --scale: expected a positive number, received \"nope\"."
+  }
+}
+```
 
 ### 統合ファイル形式 (job.json)
 
@@ -176,6 +205,7 @@ pdfme generate job.json -o out.pdf --image --json
 - キャッシュ場所: `~/.pdfme/fonts/NotoSansJP-Regular.ttf`
 - オフライン時は Roboto にフォールバック + 警告
 - `--noAutoFont` で無効化
+- カスタムフォントは現時点で `.ttf` のみを強く保証し、`.otf` / `.ttc` は明示的にエラーにする
 
 ### 終了コード
 
@@ -197,6 +227,12 @@ pdfme generate job.json -o out.pdf --image --json
 ```bash
 pdfme validate template.json
 
+# 統合 job をそのまま検証
+pdfme validate job.json
+
+# stdin から検証
+cat template.json | pdfme validate - --json
+
 # JSON 出力
 pdfme validate template.json --json
 
@@ -214,6 +250,10 @@ pdfme validate template.json --strict
 | 重複 | 異なるページ間の同名フィールド | WARNING |
 | 位置 | フィールドがページ境界外にはみ出し | WARNING |
 | basePdf | BlankPdf の場合、width/height/padding が妥当か | ERROR |
+| unified job | `template` / `inputs` の形が `generate` に渡せるか | ERROR |
+| top-level | 未知の top-level field | WARNING |
+
+`validate` は template 単体だけでなく unified job (`{ template, inputs }`) も受理する。`--strict` を付けると warning も exit code 1 に昇格する。
 
 型名が不正な場合、Levenshtein 距離に基づく修正候補を提示する:
 
@@ -243,10 +283,13 @@ pdfme pdf2img invoice.pdf --pages 1-2
 pdfme pdf2img invoice.pdf -o ./images/ --json
 ```
 
+`-o, --output` は **ディレクトリ専用**。`page-%d.png` や単一ファイル名はサポートしない。
+
 ### `--json` 出力
 
 ```json
 {
+  "ok": true,
   "pages": [
     { "image": "invoice-1.png", "page": 1, "width": 210, "height": 297 }
   ]
@@ -264,7 +307,10 @@ $ pdfme pdf2size invoice.pdf
 Page 1: 210 × 297 mm (A4 portrait)
 
 $ pdfme pdf2size invoice.pdf --json
-[{ "page": 1, "width": 210, "height": 297 }]
+{
+  "ok": true,
+  "pages": [{ "page": 1, "width": 210, "height": 297 }]
+}
 ```
 
 ---
@@ -371,9 +417,11 @@ packages/cli/
 │   │   ├── pdf2img.ts        # PDF → 画像変換
 │   │   ├── pdf2size.ts       # ページサイズ取得
 │   │   └── examples.ts       # テンプレート資産参照
+│   ├── contract.ts           # 共通 error / JSON / 引数契約
 │   ├── grid.ts               # グリッド / スキーマ境界オーバーレイ描画
 │   ├── fonts.ts              # フォント読込 + CJK 自動 DL + キャッシュ
 │   ├── cjk-detect.ts         # CJK 文字検出
+│   ├── version.ts            # ビルド時注入の CLI version
 │   └── utils.ts              # ファイル I/O, 入力形式判定, 用紙サイズ検出
 ├── __tests__/
 ├── package.json
@@ -408,6 +456,7 @@ Vite で `target: node20`, 全依存を external にして単一 `dist/index.js`
 ## 既知の制限事項
 
 - **フォント複数指定**: citty が repeated string args を未サポートのため、カンマ区切り形式 (`--font "A=a.ttf,B=b.ttf"`) を使用
+- **カスタムフォント形式**: 現時点の公式サポートは `.ttf` のみ。`.otf` / `.ttc` は unsupported error を返す
 - **examples コマンド**: 一覧取得とテンプレート取得の両方でネットワーク接続が必要。取得先は `PDFME_EXAMPLES_BASE_URL` 環境変数で上書き可能
 - **NotoSansJP の DL URL**: Google Fonts CDN の可変ウェイトフォント (~16MB) を使用。固定ウェイト版への切り替えでサイズ削減可能
 

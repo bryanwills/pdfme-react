@@ -4,11 +4,12 @@ import validateCmd from './commands/validate.js';
 import pdf2imgCmd from './commands/pdf2img.js';
 import pdf2sizeCmd from './commands/pdf2size.js';
 import examplesCmd from './commands/examples.js';
+import { CLI_VERSION } from './version.js';
 
 const main = defineCommand({
   meta: {
     name: 'pdfme',
-    version: '0.0.0',
+    version: CLI_VERSION,
     description: 'CLI tool for pdfme - generate PDFs, convert images, validate templates',
   },
   subCommands: {

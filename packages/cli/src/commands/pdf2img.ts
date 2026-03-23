@@ -1,100 +1,118 @@
-import { dirname, basename, extname, join } from 'node:path';
-import { existsSync, mkdirSync } from 'node:fs';
+import { basename, extname, join } from 'node:path';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { defineCommand } from 'citty';
 import { pdf2img, pdf2size } from '@pdfme/converter';
-import { readPdfFile, writeOutput, detectPaperSize, parsePageRange } from '../utils.js';
+import {
+  assertNoUnknownFlags,
+  fail,
+  parseEnumArg,
+  parsePositiveNumberArg,
+  printJson,
+  runWithContract,
+} from '../contract.js';
+import { detectPaperSize, parsePageRange, readPdfFile, writeOutput } from '../utils.js';
 import { drawGridOnPdfImage } from '../grid.js';
+
+const pdf2imgArgs = {
+  file: { type: 'positional' as const, description: 'Input PDF file', required: false },
+  output: { type: 'string' as const, alias: 'o', description: 'Output directory' },
+  grid: { type: 'boolean' as const, description: 'Overlay mm grid on images', default: false },
+  gridSize: { type: 'string' as const, description: 'Grid spacing in mm', default: '10' },
+  scale: { type: 'string' as const, description: 'Render scale', default: '1' },
+  imageFormat: { type: 'string' as const, description: 'Image format: png | jpeg', default: 'png' },
+  pages: { type: 'string' as const, description: 'Page range (e.g., 1-3, 1,3,5)' },
+  json: {
+    type: 'boolean' as const,
+    description: 'Machine-readable JSON output (includes size info)',
+    default: false,
+  },
+};
 
 export default defineCommand({
   meta: {
     name: 'pdf2img',
     description: 'Convert PDF pages to images',
   },
-  args: {
-    file: { type: 'positional', description: 'Input PDF file', required: true },
-    output: { type: 'string', alias: 'o', description: 'Output directory or pattern' },
-    grid: { type: 'boolean', description: 'Overlay mm grid on images', default: false },
-    gridSize: { type: 'string', description: 'Grid spacing in mm', default: '10' },
-    scale: { type: 'string', description: 'Render scale', default: '1' },
-    imageFormat: { type: 'string', description: 'Image format: png | jpeg', default: 'png' },
-    pages: { type: 'string', description: 'Page range (e.g., 1-3, 1,3,5)' },
-    json: { type: 'boolean', description: 'Machine-readable JSON output (includes size info)', default: false },
-  },
-  async run({ args }) {
-    const pdfData = readPdfFile(args.file);
-    const scale = Number.parseFloat(args.scale);
-    const imageFormat = args.imageFormat as 'png' | 'jpeg';
+  args: pdf2imgArgs,
+  async run({ args, rawArgs }) {
+    return runWithContract({ json: Boolean(args.json) }, async () => {
+      assertNoUnknownFlags(rawArgs, pdf2imgArgs);
 
-    // Get page sizes
-    const sizes = await pdf2size(pdfData);
-
-    // Determine which pages to convert
-    let pageIndices: number[];
-    if (args.pages) {
-      const requested = parsePageRange(args.pages, sizes.length);
-      pageIndices = requested.map((p) => p - 1); // 0-based
-    } else {
-      pageIndices = Array.from({ length: sizes.length }, (_, i) => i);
-    }
-
-    // Convert to images
-    const allImages = await pdf2img(pdfData, {
-      scale,
-      imageType: imageFormat,
-    });
-
-    // Determine output paths
-    const inputBase = basename(args.file, extname(args.file));
-    const ext = imageFormat === 'jpeg' ? 'jpg' : 'png';
-    let outputDir = '.';
-
-    if (args.output) {
-      outputDir = args.output;
-      if (!existsSync(outputDir)) {
-        mkdirSync(outputDir, { recursive: true });
-      }
-    }
-
-    const results: Array<{ image: string; page: number; width: number; height: number }> = [];
-
-    for (const pageIdx of pageIndices) {
-      if (pageIdx >= allImages.length) continue;
-
-      let imageData = allImages[pageIdx];
-      const size = sizes[pageIdx] ?? { width: 210, height: 297 };
-
-      if (args.grid) {
-        const gridSize = Number.parseFloat(args.gridSize);
-        imageData = await drawGridOnPdfImage(
-          imageData,
-          gridSize,
-          size.width,
-          size.height,
-          imageFormat,
-        );
+      if (!args.file) {
+        fail('No input PDF provided.', { code: 'EARG', exitCode: 1 });
       }
 
-      const outputPath = join(outputDir, `${inputBase}-${pageIdx + 1}.${ext}`);
-      writeOutput(outputPath, imageData);
+      const scale = parsePositiveNumberArg('scale', args.scale);
+      const gridSize = parsePositiveNumberArg('gridSize', args.gridSize);
+      const imageFormat = parseEnumArg('imageFormat', args.imageFormat, ['png', 'jpeg']);
+      const pdfData = readPdfFile(args.file);
+      const sizes = await pdf2size(pdfData);
 
-      const paperSize = detectPaperSize(size.width, size.height);
-      results.push({
-        image: outputPath,
-        page: pageIdx + 1,
-        width: Math.round(size.width * 100) / 100,
-        height: Math.round(size.height * 100) / 100,
+      const pageIndices = args.pages
+        ? parsePageRange(args.pages, sizes.length).map((page) => page - 1)
+        : Array.from({ length: sizes.length }, (_, index) => index);
+
+      const allImages = await pdf2img(pdfData, {
+        scale,
+        imageType: imageFormat,
       });
 
-      if (!args.json) {
-        const sizeLabel = paperSize ? `, ${paperSize}` : '';
-        console.log(
-          `\u2713 ${outputPath} (${size.width.toFixed(0)}\u00d7${size.height.toFixed(0)}mm${sizeLabel})`,
-        );
-      }
-    }
+      const inputBase = basename(args.file, extname(args.file));
+      const ext = imageFormat === 'jpeg' ? 'jpg' : 'png';
+      let outputDir = '.';
 
-    if (args.json) {
-      console.log(JSON.stringify({ pages: results }, null, 2));
-    }
+      if (args.output) {
+        outputDir = args.output;
+        if (existsSync(outputDir)) {
+          if (!statSync(outputDir).isDirectory()) {
+            fail(`Output path must be a directory for pdf2img: ${args.output}`, {
+              code: 'EIO',
+              exitCode: 3,
+            });
+          }
+        } else {
+          mkdirSync(outputDir, { recursive: true });
+        }
+      }
+
+      const results: Array<{ image: string; page: number; width: number; height: number }> = [];
+
+      for (const pageIdx of pageIndices) {
+        let imageData = allImages[pageIdx];
+        const size = sizes[pageIdx] ?? { width: 210, height: 297 };
+
+        if (args.grid) {
+          imageData = await drawGridOnPdfImage(
+            imageData,
+            gridSize,
+            size.width,
+            size.height,
+            imageFormat,
+          );
+        }
+
+        const outputPath = join(outputDir, `${inputBase}-${pageIdx + 1}.${ext}`);
+        writeOutput(outputPath, imageData);
+
+        const paperSize = detectPaperSize(size.width, size.height);
+        results.push({
+          image: outputPath,
+          page: pageIdx + 1,
+          width: Math.round(size.width * 100) / 100,
+          height: Math.round(size.height * 100) / 100,
+        });
+
+        if (!args.json) {
+          const sizeLabel = paperSize ? `, ${paperSize}` : '';
+          console.log(
+            `\u2713 ${outputPath} (${size.width.toFixed(0)}\u00d7${size.height.toFixed(0)}mm${sizeLabel})`,
+          );
+        }
+      }
+
+      if (args.json) {
+        printJson({ ok: true, pages: results });
+      }
+    });
   },
 });

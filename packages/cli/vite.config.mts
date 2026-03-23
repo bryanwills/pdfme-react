@@ -6,6 +6,7 @@ import { defineConfig } from 'vite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as {
+  version?: string;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 };
@@ -28,6 +29,9 @@ const isExternal = (id: string) =>
   alwaysExternal.some((dep) => id === dep || id.startsWith(`${dep}/`));
 
 export default defineConfig({
+  define: {
+    __CLI_VERSION__: JSON.stringify(packageJson.version ?? '0.0.0'),
+  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
