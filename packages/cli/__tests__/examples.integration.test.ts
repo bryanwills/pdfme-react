@@ -21,19 +21,14 @@ const FONT_FIXTURES_DIR = resolve(
   'fonts',
 );
 
-function createFixtureEnv(
-  cacheDir: string,
-  fetchMode: 'online' | 'offline' = 'online',
-): NodeJS.ProcessEnv {
-  const homeDir = join(cacheDir, 'home');
+function createFixtureEnv(rootDir: string): NodeJS.ProcessEnv {
+  const homeDir = join(rootDir, 'home');
   return {
     ...process.env,
     HOME: homeDir,
     PDFME_EXAMPLES_BASE_URL: 'https://fixtures.example.com/template-assets',
-    PDFME_EXAMPLES_CACHE_DIR: cacheDir,
     PDFME_TEST_ASSETS_DIR: ASSETS_DIR,
     PDFME_TEST_FONT_FIXTURES_DIR: FONT_FIXTURES_DIR,
-    PDFME_TEST_FETCH_MODE: fetchMode,
   };
 }
 
@@ -64,8 +59,7 @@ describe('examples integration smoke', () => {
 
   it('uses a playground example to generate a PDF through the CLI', () => {
     mkdirSync(TMP, { recursive: true });
-    const cacheDir = join(TMP, 'cache');
-    const env = createFixtureEnv(cacheDir);
+    const env = createFixtureEnv(TMP);
     const jobPath = join(TMP, 'invoice-job.json');
     const pdfPath = join(TMP, 'invoice.pdf');
 
@@ -88,44 +82,25 @@ describe('examples integration smoke', () => {
     expect(existsSync(pdfPath)).toBe(true);
   });
 
-  it('uses the cached manifest after remote fetch failures', () => {
+  it('lists manifest metadata through the CLI', () => {
     mkdirSync(TMP, { recursive: true });
-    const cacheDir = join(TMP, 'cache-offline');
-
-    const onlineResult = runCli(['examples', '--list', '--json'], {
-      env: createFixtureEnv(cacheDir, 'online'),
-    });
-    expect(onlineResult.exitCode).toBe(0);
-    expect(JSON.parse(onlineResult.stdout).source).toBe('remote');
-
-    const offlineResult = runCli(['examples', '--list', '--json'], {
-      env: createFixtureEnv(cacheDir, 'offline'),
-    });
-    expect(offlineResult.exitCode).toBe(0);
-    expect(JSON.parse(offlineResult.stdout).source).toBe('cache');
-  });
-
-  it('returns structured JSON when offline without a cached manifest', () => {
-    mkdirSync(TMP, { recursive: true });
-    const cacheDir = join(TMP, 'cache-empty-offline');
-
     const result = runCli(['examples', '--list', '--json'], {
-      env: createFixtureEnv(cacheDir, 'offline'),
+      env: createFixtureEnv(TMP),
     });
 
-    expect(result.exitCode).toBe(3);
+    expect(result.exitCode).toBe(0);
     const payload = JSON.parse(result.stdout);
-    expect(payload.ok).toBe(false);
-    expect(payload.error.code).toBe('EIO');
-    expect(payload.error.message).toContain('Failed to load examples manifest');
+    expect(payload.ok).toBe(true);
+    expect(payload.source).toBe('remote');
+    expect(Array.isArray(payload.manifest.templates)).toBe(true);
+    expect(payload.manifest.templates.length).toBeGreaterThan(0);
   });
 
   it(
-    'generates every version-pinned playground example through examples -w and generate',
+    'generates every playground example through examples -w and generate',
     () => {
       mkdirSync(TMP, { recursive: true });
-      const cacheDir = join(TMP, 'cache-all');
-      const env = createFixtureEnv(cacheDir);
+      const env = createFixtureEnv(TMP);
       const manifest = JSON.parse(readFileSync(join(ASSETS_DIR, 'manifest.json'), 'utf8')) as {
         templates: Array<{ name: string }>;
       };

@@ -328,16 +328,11 @@ $ pdfme pdf2size invoice.pdf --json
 
 `https://playground.pdfme.com/template-assets/` で配信しているテンプレート資産を参照・出力する。AI エージェントがテンプレートを新規作成する際の構造参考として使える。
 
-デフォルトでは CLI version に対応する version-pinned manifest を取得し、取得結果をローカル cache に保存する。remote が落ちても cache があれば継続利用できる。`--latest` を付けると unpinned の最新 manifest を取りにいく。
-
 ### 使い方
 
 ```bash
 # テンプレート一覧
 pdfme examples --list
-
-# version pin を無視して最新 manifest を取得
-pdfme examples --list --latest
 
 # テンプレートを stdout に出力
 pdfme examples invoice
@@ -478,8 +473,7 @@ Vite で `target: node20`, 全依存を external にして単一 `dist/index.js`
 
 - **フォント複数指定**: citty が repeated string args を未サポートのため、カンマ区切り形式 (`--font "A=a.ttf,B=b.ttf"`) を使用
 - **カスタムフォント形式**: 現時点の公式サポートは `.ttf` のみ。`.otf` / `.ttc` は unsupported error を返す
-- **examples コマンド**: 初回取得はネットワーク接続が必要。manifest / template が cache 済みなら offline fallback で継続利用できる。取得先は `PDFME_EXAMPLES_BASE_URL` 環境変数で上書き可能
-- **examples cache**: cache ルートは `PDFME_EXAMPLES_CACHE_DIR` で上書き可能。default は `~/.pdfme/examples`
+- **examples コマンド**: current の official manifest / template を network 越しに取得する convenience command。取得先は `PDFME_EXAMPLES_BASE_URL` 環境変数で上書き可能
 - **NotoSansJP の DL URL**: Google Fonts CDN の可変ウェイトフォント (~16MB) を使用。固定ウェイト版への切り替えでサイズ削減可能
 
 ## 今後の拡張 (v2 以降)

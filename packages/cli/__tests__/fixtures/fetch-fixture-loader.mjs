@@ -3,7 +3,6 @@ import { join } from 'node:path';
 
 const ASSETS_DIR = process.env.PDFME_TEST_ASSETS_DIR;
 const FONT_FIXTURES_DIR = process.env.PDFME_TEST_FONT_FIXTURES_DIR;
-const FETCH_MODE = process.env.PDFME_TEST_FETCH_MODE ?? 'online';
 const BASE_URL = (process.env.PDFME_EXAMPLES_BASE_URL ?? 'https://fixtures.example.com/template-assets').replace(
   /\/$/,
   '',
@@ -49,13 +48,6 @@ function buildResponse(filePath) {
 
 globalThis.fetch = async (input, init) => {
   const url = getUrl(input);
-
-  if (FETCH_MODE === 'offline') {
-    if (url.startsWith(`${BASE_URL}/`) || url in fontFixtures) {
-      throw new Error(`fixture fetch offline for ${url}`);
-    }
-    return originalFetch(input, init);
-  }
 
   const fontFixturePath = fontFixtures[url];
   if (fontFixturePath) {

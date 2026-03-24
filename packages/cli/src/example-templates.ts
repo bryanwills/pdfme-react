@@ -1,6 +1,3 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
 import { CLI_VERSION } from './version.js';
 
 export interface ExampleManifestEntry {
@@ -24,22 +21,18 @@ export interface ExampleManifest {
 
 export interface ExampleManifestLoadResult {
   manifest: ExampleManifest;
-  source: 'remote' | 'cache';
+  source: 'remote';
   url?: string;
 }
 
 export interface ExampleTemplateLoadResult {
   template: Record<string, unknown>;
-  source: 'remote' | 'cache';
+  source: 'remote';
   url?: string;
 }
 
 export function getExamplesBaseUrl(): string {
   return process.env.PDFME_EXAMPLES_BASE_URL ?? 'https://playground.pdfme.com/template-assets';
-}
-
-export function getExamplesCacheRoot(): string {
-  return process.env.PDFME_EXAMPLES_CACHE_DIR ?? join(homedir(), '.pdfme', 'examples');
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -54,34 +47,21 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function getExampleManifest(options: { latest?: boolean } = {}): Promise<ExampleManifestLoadResult> {
-  const latest = Boolean(options.latest);
-  const cachePath = getManifestCachePath(latest);
-  const manifestUrls = getManifestUrls(latest);
-
+export async function getExampleManifest(): Promise<ExampleManifestLoadResult> {
   let lastError: unknown;
-  for (const url of manifestUrls) {
+  for (const url of getManifestUrls()) {
     try {
-      const manifest = normalizeManifest(await fetchJson<unknown>(url));
-      writeCachedJson(cachePath, manifest);
-      return { manifest, source: 'remote', url };
+      return { manifest: normalizeManifest(await fetchJson<unknown>(url)), source: 'remote', url };
     } catch (error) {
       lastError = error;
     }
   }
 
-  const cached = readCachedJson<unknown>(cachePath);
-  if (cached !== undefined) {
-    return { manifest: normalizeManifest(cached), source: 'cache' };
-  }
-
-  throw new Error(
-    `Could not load examples manifest from remote or cache. Cache path: ${cachePath}. ${formatError(lastError)}`,
-  );
+  throw new Error(`Could not load examples manifest. ${formatError(lastError)}`);
 }
 
-export async function getExampleTemplateNames(options: { latest?: boolean } = {}): Promise<string[]> {
-  const { manifest } = await getExampleManifest(options);
+export async function getExampleTemplateNames(): Promise<string[]> {
+  const { manifest } = await getExampleManifest();
   return manifest.templates
     .map((entry) => entry.name)
     .filter((name): name is string => typeof name === 'string' && name.length > 0)
@@ -90,7 +70,7 @@ export async function getExampleTemplateNames(options: { latest?: boolean } = {}
 
 export async function fetchExampleTemplate(
   name: string,
-  options: { latest?: boolean; manifest?: ExampleManifest } = {},
+  options: { manifest?: ExampleManifest } = {},
 ): Promise<Record<string, unknown>> {
   const result = await fetchExampleTemplateWithSource(name, options);
   return result.template;
@@ -98,10 +78,9 @@ export async function fetchExampleTemplate(
 
 export async function fetchExampleTemplateWithSource(
   name: string,
-  options: { latest?: boolean; manifest?: ExampleManifest } = {},
+  options: { manifest?: ExampleManifest } = {},
 ): Promise<ExampleTemplateLoadResult> {
-  const latest = Boolean(options.latest);
-  const manifest = options.manifest ?? (await getExampleManifest({ latest })).manifest;
+  const manifest = options.manifest ?? (await getExampleManifest()).manifest;
   const entry = manifest.templates.find((template) => template.name === name);
 
   if (!entry) {
@@ -110,68 +89,12 @@ export async function fetchExampleTemplateWithSource(
 
   const relativePath = entry.path ?? `${name}/template.json`;
   const templateUrl = `${getExamplesBaseUrl().replace(/\/$/, '')}/${relativePath}`;
-  const cachePath = getTemplateCachePath(name, latest);
-
-  try {
-    const template = await fetchJson<Record<string, unknown>>(templateUrl);
-    writeCachedJson(cachePath, template);
-    return { template, source: 'remote', url: templateUrl };
-  } catch (error) {
-    const cached = readCachedJson<Record<string, unknown>>(cachePath);
-    if (cached !== undefined) {
-      return { template: cached, source: 'cache' };
-    }
-
-    throw new Error(
-      `Could not load template "${name}" from remote or cache. Cache path: ${cachePath}. ${formatError(error)}`,
-    );
-  }
+  return { template: await fetchJson<Record<string, unknown>>(templateUrl), source: 'remote', url: templateUrl };
 }
 
-function getManifestUrls(latest: boolean): string[] {
+function getManifestUrls(): string[] {
   const baseUrl = getExamplesBaseUrl().replace(/\/$/, '');
-
-  if (latest) {
-    return [`${baseUrl}/manifest.json`, `${baseUrl}/index.json`];
-  }
-
-  return [
-    `${baseUrl}/manifests/${encodeURIComponent(CLI_VERSION)}.json`,
-    `${baseUrl}/manifest.json`,
-    `${baseUrl}/index.json`,
-  ];
-}
-
-function getManifestCachePath(latest: boolean): string {
-  return join(getExamplesCacheDir(latest), 'manifest.json');
-}
-
-function getTemplateCachePath(name: string, latest: boolean): string {
-  return join(getExamplesCacheDir(latest), 'templates', `${name}.json`);
-}
-
-function getExamplesCacheDir(latest: boolean): string {
-  return join(getExamplesCacheRoot(), latest ? 'latest' : CLI_VERSION);
-}
-
-function readCachedJson<T>(filePath: string): T | undefined {
-  if (!existsSync(filePath)) {
-    return undefined;
-  }
-
-  try {
-    return JSON.parse(readFileSync(filePath, 'utf8')) as T;
-  } catch {
-    return undefined;
-  }
-}
-
-function writeCachedJson(filePath: string, value: unknown): void {
-  const dir = dirname(filePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-  writeFileSync(filePath, JSON.stringify(value, null, 2));
+  return [`${baseUrl}/manifest.json`, `${baseUrl}/index.json`];
 }
 
 function normalizeManifest(raw: unknown): ExampleManifest {

@@ -23,11 +23,6 @@ const examplesArgs = {
     description: 'Output unified format with sample inputs',
     default: false,
   },
-  latest: {
-    type: 'boolean' as const,
-    description: 'Fetch the latest manifest instead of the version-pinned manifest',
-    default: false,
-  },
   json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
 };
 
@@ -75,7 +70,7 @@ export default defineCommand({
 
       let manifestResult;
       try {
-        manifestResult = await getExampleManifest({ latest: args.latest });
+        manifestResult = await getExampleManifest();
       } catch (error) {
         fail(
           `Failed to load examples manifest. ${error instanceof Error ? error.message : String(error)}`,
@@ -121,7 +116,6 @@ export default defineCommand({
       let templateResult;
       try {
         templateResult = await fetchExampleTemplateWithSource(args.name, {
-          latest: args.latest,
           manifest: manifestResult.manifest,
         });
       } catch (error) {
