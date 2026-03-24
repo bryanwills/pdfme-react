@@ -73,7 +73,20 @@ export default defineCommand({
     return runWithContract({ json: Boolean(args.json) }, async () => {
       assertNoUnknownFlags(rawArgs, examplesArgs);
 
-      const manifestResult = await getExampleManifest({ latest: args.latest });
+      let manifestResult;
+      try {
+        manifestResult = await getExampleManifest({ latest: args.latest });
+      } catch (error) {
+        fail(
+          `Failed to load examples manifest. ${error instanceof Error ? error.message : String(error)}`,
+          {
+            code: 'EIO',
+            exitCode: 3,
+            cause: error,
+          },
+        );
+      }
+
       const templateEntries = manifestResult.manifest.templates;
       const templateNames = templateEntries
         .map((entry) => entry.name)
@@ -105,10 +118,22 @@ export default defineCommand({
         });
       }
 
-      const templateResult = await fetchExampleTemplateWithSource(args.name, {
-        latest: args.latest,
-        manifest: manifestResult.manifest,
-      });
+      let templateResult;
+      try {
+        templateResult = await fetchExampleTemplateWithSource(args.name, {
+          latest: args.latest,
+          manifest: manifestResult.manifest,
+        });
+      } catch (error) {
+        fail(
+          `Failed to load example template "${args.name}". ${error instanceof Error ? error.message : String(error)}`,
+          {
+            code: 'EIO',
+            exitCode: 3,
+            cause: error,
+          },
+        );
+      }
 
       const output = args.withInputs ? buildExampleJob(templateResult.template) : templateResult.template;
 

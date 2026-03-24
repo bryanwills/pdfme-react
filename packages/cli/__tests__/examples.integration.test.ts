@@ -1,17 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { getDefaultFont } from '@pdfme/common';
-import { generate } from '@pdfme/generator';
-import * as schemas from '@pdfme/schemas';
-import examplesCmd from '../src/commands/examples.js';
-import { OFFICIAL_EXAMPLE_FONT_URLS } from '../src/example-fonts.js';
-import { CLI_VERSION } from '../src/version.js';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, '..', 'dist', 'index.js');
+const PRELOAD = pathToFileURL(join(__dirname, 'fixtures', 'fetch-fixture-loader.mjs')).href;
 const TMP = join(__dirname, '..', '.test-tmp-examples-integration');
 const ASSETS_DIR = resolve(__dirname, '..', '..', '..', 'playground', 'public', 'template-assets');
 const FONT_FIXTURES_DIR = resolve(
@@ -25,32 +20,32 @@ const FONT_FIXTURES_DIR = resolve(
   'assets',
   'fonts',
 );
-const AUTO_NOTO_SANS_JP_URL =
-  'https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf';
-const ALL_PLUGINS = {
-  text: schemas.text,
-  multiVariableText: schemas.multiVariableText,
-  image: schemas.image,
-  signature: schemas.signature,
-  svg: schemas.svg,
-  table: schemas.table,
-  ...schemas.barcodes,
-  line: schemas.line,
-  rectangle: schemas.rectangle,
-  ellipse: schemas.ellipse,
-  dateTime: schemas.dateTime,
-  date: schemas.date,
-  time: schemas.time,
-  select: schemas.select,
-  radioGroup: schemas.radioGroup,
-  checkbox: schemas.checkbox,
-};
 
-function runCli(args: string[]): { stdout: string; stderr: string; exitCode: number } {
+function createFixtureEnv(
+  cacheDir: string,
+  fetchMode: 'online' | 'offline' = 'online',
+): NodeJS.ProcessEnv {
+  const homeDir = join(cacheDir, 'home');
+  return {
+    ...process.env,
+    HOME: homeDir,
+    PDFME_EXAMPLES_BASE_URL: 'https://fixtures.example.com/template-assets',
+    PDFME_EXAMPLES_CACHE_DIR: cacheDir,
+    PDFME_TEST_ASSETS_DIR: ASSETS_DIR,
+    PDFME_TEST_FONT_FIXTURES_DIR: FONT_FIXTURES_DIR,
+    PDFME_TEST_FETCH_MODE: fetchMode,
+  };
+}
+
+function runCli(
+  args: string[],
+  options: { env?: NodeJS.ProcessEnv } = {},
+): { stdout: string; stderr: string; exitCode: number } {
   try {
-    const stdout = execFileSync('node', [CLI, ...args], {
+    const stdout = execFileSync('node', ['--import', PRELOAD, CLI, ...args], {
       encoding: 'utf8',
-      timeout: 30000,
+      timeout: 60000,
+      env: options.env,
     });
     return { stdout, stderr: '', exitCode: 0 };
   } catch (error: any) {
@@ -62,187 +57,114 @@ function runCli(args: string[]): { stdout: string; stderr: string; exitCode: num
   }
 }
 
-function buildFetchStub() {
-  const fontFixtures: Record<string, string> = {
-    [OFFICIAL_EXAMPLE_FONT_URLS.NotoSansJP]: join(FONT_FIXTURES_DIR, 'NotoSansJP-Regular.ttf'),
-    [OFFICIAL_EXAMPLE_FONT_URLS.NotoSerifJP]: join(FONT_FIXTURES_DIR, 'NotoSerifJP-Regular.ttf'),
-    [OFFICIAL_EXAMPLE_FONT_URLS['PinyonScript-Regular']]: join(
-      FONT_FIXTURES_DIR,
-      'PinyonScript-Regular.ttf',
-    ),
-    [AUTO_NOTO_SANS_JP_URL]: join(FONT_FIXTURES_DIR, 'NotoSansJP-Regular.ttf'),
-  };
-
-  return vi.fn(async (input: string | URL | Request) => {
-    const url = String(input);
-    const baseUrl = 'https://fixtures.example.com/template-assets';
-    const fontFixture = fontFixtures[url];
-    if (fontFixture) {
-      return new Response(readFileSync(fontFixture), {
-        status: 200,
-        headers: { 'content-type': 'font/ttf' },
-      });
-    }
-
-    if (!url.startsWith(`${baseUrl}/`)) {
-      throw new Error(`Unexpected URL: ${url}`);
-    }
-
-    const relativePath = url.replace(`${baseUrl}/`, '');
-    const filePath = join(ASSETS_DIR, relativePath);
-    if (!existsSync(filePath)) {
-      throw new Error(`Fixture not found for URL: ${url}`);
-    }
-
-    return new Response(readFileSync(filePath, 'utf8'), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  });
-}
-
 describe('examples integration smoke', () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-    delete process.env.PDFME_EXAMPLES_BASE_URL;
-    delete process.env.PDFME_EXAMPLES_CACHE_DIR;
     rmSync(TMP, { recursive: true, force: true });
   });
 
-  it('uses a playground example to generate a PDF through the CLI', async () => {
+  it('uses a playground example to generate a PDF through the CLI', () => {
     mkdirSync(TMP, { recursive: true });
-    process.env.PDFME_EXAMPLES_BASE_URL = 'https://fixtures.example.com/template-assets';
-    process.env.PDFME_EXAMPLES_CACHE_DIR = join(TMP, 'cache');
-    vi.stubGlobal('fetch', buildFetchStub());
-
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const cacheDir = join(TMP, 'cache');
+    const env = createFixtureEnv(cacheDir);
     const jobPath = join(TMP, 'invoice-job.json');
     const pdfPath = join(TMP, 'invoice.pdf');
 
-    await examplesCmd.run!({
-      args: {
-        list: false,
-        name: 'invoice',
-        output: jobPath,
-        withInputs: true,
-        latest: false,
-        json: true,
-      },
-      rawArgs: [],
-      cmd: examplesCmd,
-    } as never);
+    const examplesResult = runCli(['examples', 'invoice', '--withInputs', '-o', jobPath, '--json'], {
+      env,
+    });
+    expect(examplesResult.exitCode).toBe(0);
 
-    const examplesPayload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? 'null'));
+    const examplesPayload = JSON.parse(examplesResult.stdout);
     expect(examplesPayload.ok).toBe(true);
     expect(examplesPayload.outputPath).toBe(jobPath);
+    expect(existsSync(jobPath)).toBe(true);
 
-    const generateResult = runCli(['generate', jobPath, '-o', pdfPath, '--json']);
+    const generateResult = runCli(['generate', jobPath, '-o', pdfPath, '--json'], { env });
     expect(generateResult.exitCode).toBe(0);
 
     const payload = JSON.parse(generateResult.stdout);
     expect(payload.ok).toBe(true);
     expect(payload.pdf).toBe(pdfPath);
+    expect(existsSync(pdfPath)).toBe(true);
   });
 
-  it('uses the cached manifest after remote fetch failures', async () => {
+  it('uses the cached manifest after remote fetch failures', () => {
     mkdirSync(TMP, { recursive: true });
-    process.env.PDFME_EXAMPLES_BASE_URL = 'https://fixtures.example.com/template-assets';
-    process.env.PDFME_EXAMPLES_CACHE_DIR = join(TMP, 'cache-offline');
-    vi.stubGlobal('fetch', buildFetchStub());
+    const cacheDir = join(TMP, 'cache-offline');
 
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const onlineResult = runCli(['examples', '--list', '--json'], {
+      env: createFixtureEnv(cacheDir, 'online'),
+    });
+    expect(onlineResult.exitCode).toBe(0);
+    expect(JSON.parse(onlineResult.stdout).source).toBe('remote');
 
-    await examplesCmd.run!({
-      args: { list: true, name: undefined, latest: false, json: true },
-      rawArgs: [],
-      cmd: examplesCmd,
-    } as never);
+    const offlineResult = runCli(['examples', '--list', '--json'], {
+      env: createFixtureEnv(cacheDir, 'offline'),
+    });
+    expect(offlineResult.exitCode).toBe(0);
+    expect(JSON.parse(offlineResult.stdout).source).toBe('cache');
+  });
 
-    expect(JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? 'null')).source).toBe('remote');
+  it('returns structured JSON when offline without a cached manifest', () => {
+    mkdirSync(TMP, { recursive: true });
+    const cacheDir = join(TMP, 'cache-empty-offline');
 
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error(`manifest offline for ${CLI_VERSION}`);
-    }));
+    const result = runCli(['examples', '--list', '--json'], {
+      env: createFixtureEnv(cacheDir, 'offline'),
+    });
 
-    await examplesCmd.run!({
-      args: { list: true, name: undefined, latest: false, json: true },
-      rawArgs: [],
-      cmd: examplesCmd,
-    } as never);
-
-    expect(JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? 'null')).source).toBe('cache');
+    expect(result.exitCode).toBe(3);
+    const payload = JSON.parse(result.stdout);
+    expect(payload.ok).toBe(false);
+    expect(payload.error.code).toBe('EIO');
+    expect(payload.error.message).toContain('Failed to load examples manifest');
   });
 
   it(
     'generates every version-pinned playground example through examples -w and generate',
-    async () => {
+    () => {
       mkdirSync(TMP, { recursive: true });
-      process.env.PDFME_EXAMPLES_BASE_URL = 'https://fixtures.example.com/template-assets';
-      process.env.PDFME_EXAMPLES_CACHE_DIR = join(TMP, 'cache-all');
-      vi.stubGlobal('fetch', buildFetchStub());
-
+      const cacheDir = join(TMP, 'cache-all');
+      const env = createFixtureEnv(cacheDir);
       const manifest = JSON.parse(readFileSync(join(ASSETS_DIR, 'manifest.json'), 'utf8')) as {
         templates: Array<{ name: string }>;
       };
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
       for (const { name } of manifest.templates) {
         const jobPath = join(TMP, `${name}.job.json`);
+        const pdfPath = join(TMP, `${name}.pdf`);
 
-        await examplesCmd.run!({
-          args: {
-            list: false,
-            name,
-            output: jobPath,
-            withInputs: true,
-            latest: false,
-            json: true,
-          },
-          rawArgs: [name, '--withInputs', '-o', jobPath, '--json'],
-          cmd: examplesCmd,
-        } as never);
+        const examplesResult = runCli(['examples', name, '--withInputs', '-o', jobPath, '--json'], {
+          env,
+        });
+        if (examplesResult.exitCode !== 0) {
+          throw new Error(
+            `Example "${name}" failed to export.\nstdout:\n${examplesResult.stdout}\nstderr:\n${examplesResult.stderr}`,
+          );
+        }
 
-        const examplePayload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? 'null'));
+        const examplePayload = JSON.parse(examplesResult.stdout);
         expect(examplePayload.ok).toBe(true);
         expect(examplePayload.outputPath).toBe(jobPath);
+
         const job = JSON.parse(readFileSync(jobPath, 'utf8'));
         expect(job).toHaveProperty('template');
         expect(Array.isArray(job.inputs)).toBe(true);
+        expect(existsSync(jobPath)).toBe(true);
 
-        try {
-          const jobOptions =
-            typeof job.options === 'object' && job.options !== null && !Array.isArray(job.options)
-              ? (job.options as Record<string, unknown>)
-              : {};
-          const jobFont =
-            typeof jobOptions.font === 'object' &&
-            jobOptions.font !== null &&
-            !Array.isArray(jobOptions.font)
-              ? (jobOptions.font as Record<string, unknown>)
-              : undefined;
-          const pdf = await generate({
-            template: job.template,
-            inputs: job.inputs,
-            options: {
-              ...jobOptions,
-              font: {
-                ...(jobFont ?? {}),
-                ...getDefaultFont(),
-              },
-            },
-            plugins: ALL_PLUGINS,
-          });
-          expect(pdf.byteLength).toBeGreaterThan(0);
-        } catch (error) {
+        const generateResult = runCli(['generate', jobPath, '-o', pdfPath, '--json'], { env });
+        if (generateResult.exitCode !== 0) {
           throw new Error(
-            `Example "${name}" failed to generate.\nJob:\n${JSON.stringify(job, null, 2)}\n${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            `Example "${name}" failed to generate via CLI.\nJob:\n${JSON.stringify(job, null, 2)}\nstdout:\n${generateResult.stdout}\nstderr:\n${generateResult.stderr}`,
           );
         }
+
+        const payload = JSON.parse(generateResult.stdout);
+        expect(payload.ok).toBe(true);
+        expect(payload.pdf).toBe(pdfPath);
+        expect(existsSync(pdfPath)).toBe(true);
       }
     },
-    120000,
+    180000,
   );
 });
