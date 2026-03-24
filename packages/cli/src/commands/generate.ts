@@ -2,8 +2,7 @@ import { defineCommand } from 'citty';
 import { generate } from '@pdfme/generator';
 import { pdf2img, pdf2size } from '@pdfme/converter';
 import { checkGenerateProps, isBlankPdf } from '@pdfme/common';
-import type { Font, Template } from '@pdfme/common';
-import * as schemas from '@pdfme/schemas';
+import type { Font, GenerateProps, Template } from '@pdfme/common';
 import {
   assertNoUnknownFlags,
   fail,
@@ -22,25 +21,7 @@ import {
 import { resolveFont } from '../fonts.js';
 import { detectCJKInTemplate, detectCJKInInputs } from '../cjk-detect.js';
 import { drawGridOnImage } from '../grid.js';
-
-const allPlugins = {
-  text: schemas.text,
-  multiVariableText: schemas.multiVariableText,
-  image: schemas.image,
-  svg: schemas.svg,
-  table: schemas.table,
-  ...schemas.barcodes,
-  line: schemas.line,
-  rectangle: schemas.rectangle,
-  ellipse: schemas.ellipse,
-  dateTime: schemas.dateTime,
-  date: schemas.date,
-  time: schemas.time,
-  select: schemas.select,
-  radioGroup: schemas.radioGroup,
-  checkbox: schemas.checkbox,
-  signature: schemas.signature,
-};
+import { schemaPlugins } from '../schema-plugins.js';
 
 const generateArgs = {
   file: {
@@ -143,7 +124,7 @@ export default defineCommand({
         template,
         inputs,
         options: generateOptions,
-        plugins: allPlugins as Record<string, any>,
+        plugins: schemaPlugins as NonNullable<GenerateProps['plugins']>,
       });
 
       writeOutput(args.output, pdf);

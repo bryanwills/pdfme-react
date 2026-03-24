@@ -9,29 +9,70 @@ interface Schema {
 
 type ImageFormat = 'png' | 'jpeg';
 
-// Schema type -> color mapping for visual distinction
-const TYPE_COLORS: Record<string, string> = {
-  text: '#2196F3',
-  multiVariableText: '#1565C0',
-  image: '#4CAF50',
-  svg: '#66BB6A',
-  table: '#FF9800',
-  qrcode: '#9C27B0',
-  code128: '#9C27B0',
-  ean13: '#9C27B0',
-  line: '#795548',
-  rectangle: '#607D8B',
-  ellipse: '#00BCD4',
-  date: '#E91E63',
-  dateTime: '#E91E63',
-  time: '#E91E63',
-  select: '#FF5722',
-  radioGroup: '#8BC34A',
-  checkbox: '#CDDC39',
-};
+const schemaColorCache = new Map<string, string>();
+
+function hashString(value: string): number {
+  let hash = 0;
+
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+
+  return hash;
+}
+
+function hslToHex(hue: number, saturation: number, lightness: number): string {
+  const s = saturation / 100;
+  const l = lightness / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const h = hue / 60;
+  const x = c * (1 - Math.abs((h % 2) - 1));
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (h >= 0 && h < 1) {
+    r = c;
+    g = x;
+  } else if (h < 2) {
+    r = x;
+    g = c;
+  } else if (h < 3) {
+    g = c;
+    b = x;
+  } else if (h < 4) {
+    g = x;
+    b = c;
+  } else if (h < 5) {
+    r = x;
+    b = c;
+  } else {
+    r = c;
+    b = x;
+  }
+
+  const m = l - c / 2;
+  const toHex = (channel: number) =>
+    Math.round((channel + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
 
 function getSchemaColor(type: string): string {
-  return TYPE_COLORS[type] ?? '#F44336';
+  const normalizedType = type.trim().toLowerCase();
+  const cached = schemaColorCache.get(normalizedType);
+  if (cached) {
+    return cached;
+  }
+
+  // Keep colors stable per schema type without maintaining a manual lookup table.
+  const hash = hashString(normalizedType);
+  const color = hslToHex(hash % 360, 65 + (hash % 12), 42 + ((hash >> 8) % 10));
+  schemaColorCache.set(normalizedType, color);
+  return color;
 }
 
 interface CanvasContext {

@@ -1,28 +1,14 @@
 import { dirname, resolve } from 'node:path';
 import { defineCommand } from 'citty';
 import { checkGenerateProps, checkTemplate } from '@pdfme/common';
-import * as schemas from '@pdfme/schemas';
 import {
   assertNoUnknownFlags,
   fail,
   printJson,
   runWithContract,
 } from '../contract.js';
+import { schemaTypes } from '../schema-plugins.js';
 import { readJsonFile, readJsonFromStdin, resolveBasePdf } from '../utils.js';
-
-// Filter to only actual schema plugins (objects with pdf/ui/propPanel).
-// Excludes utility exports like getDynamicHeightsForTable, builtInPlugins.
-const BUILTIN_TYPES = new Set(
-  Object.entries(schemas)
-    .filter(([, value]) => value && typeof value === 'object' && 'pdf' in value)
-    .map(([key]) => key),
-);
-if ('barcodes' in schemas && typeof schemas.barcodes === 'object') {
-  BUILTIN_TYPES.delete('barcodes');
-  for (const key of Object.keys(schemas.barcodes as Record<string, unknown>)) {
-    BUILTIN_TYPES.add(key);
-  }
-}
 
 const KNOWN_TEMPLATE_KEYS = new Set(['author', 'basePdf', 'columns', 'pdfmeVersion', 'schemas']);
 const KNOWN_JOB_KEYS = new Set(['template', 'inputs', 'options']);
@@ -56,7 +42,7 @@ interface ValidationSource {
 function findClosestType(type: string): string | null {
   let bestMatch: string | null = null;
   let bestDist = Infinity;
-  for (const known of BUILTIN_TYPES) {
+  for (const known of schemaTypes) {
     const dist = levenshtein(type.toLowerCase(), known.toLowerCase());
     if (dist < bestDist && dist <= 3) {
       bestDist = dist;
@@ -125,11 +111,11 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
       const width = schema.width as number | undefined;
       const height = schema.height as number | undefined;
 
-      if (type && !BUILTIN_TYPES.has(type)) {
+      if (type && !schemaTypes.has(type)) {
         const suggestion = findClosestType(type);
         const hint = suggestion ? ` Did you mean: ${suggestion}?` : '';
         errors.push(
-          `Field "${name}" has unknown type "${type}".${hint} Available types: ${[...BUILTIN_TYPES].join(', ')}`,
+          `Field "${name}" has unknown type "${type}".${hint} Available types: ${[...schemaTypes].join(', ')}`,
         );
       }
 
