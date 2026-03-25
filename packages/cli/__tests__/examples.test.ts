@@ -79,10 +79,58 @@ describe('examples command', () => {
     const manifest = await getExampleManifest();
     expect(manifest.source).toBe('remote');
     expect(manifest.url).toBe('https://fixtures.example.com/template-assets/index.json');
-    expect(manifest.manifest.templates).toEqual([{ name: 'invoice', author: 'pdfme' }]);
+    expect(manifest.manifest.templates).toEqual([
+      {
+        name: 'invoice',
+        author: 'pdfme',
+        path: 'invoice/template.json',
+        thumbnailPath: 'invoice/thumbnail.png',
+        pageCount: 0,
+        fieldCount: 0,
+        schemaTypes: [],
+        fontNames: [],
+        hasCJK: false,
+        basePdfKind: 'unknown',
+      },
+    ]);
 
     const names = await getExampleTemplateNames();
     expect(names).toEqual(['invoice']);
+  });
+
+  it('normalizes manifest entries to a complete metadata shape', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            schemaVersion: 1,
+            cliVersion: '0.1.0-alpha.0',
+            templates: [{ name: 'invoice' }],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      ),
+    );
+
+    const manifest = await getExampleManifest();
+    expect(manifest.manifest.templates).toEqual([
+      {
+        name: 'invoice',
+        author: 'pdfme',
+        path: 'invoice/template.json',
+        thumbnailPath: 'invoice/thumbnail.png',
+        pageCount: 0,
+        fieldCount: 0,
+        schemaTypes: [],
+        fontNames: [],
+        hasCJK: false,
+        basePdfKind: 'unknown',
+      },
+    ]);
   });
 
   it('fetches a template referenced from the manifest', async () => {

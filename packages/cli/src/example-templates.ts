@@ -2,15 +2,15 @@ import { CLI_VERSION } from './version.js';
 
 export interface ExampleManifestEntry {
   name: string;
-  author?: string;
-  path?: string;
-  thumbnailPath?: string;
-  pageCount?: number;
-  fieldCount?: number;
-  schemaTypes?: string[];
-  fontNames?: string[];
-  hasCJK?: boolean;
-  basePdfKind?: string;
+  author: string;
+  path: string;
+  thumbnailPath: string;
+  pageCount: number;
+  fieldCount: number;
+  schemaTypes: string[];
+  fontNames: string[];
+  hasCJK: boolean;
+  basePdfKind: string;
 }
 
 export interface ExampleManifest {
@@ -87,7 +87,7 @@ export async function fetchExampleTemplateWithSource(
     throw new Error(`Template "${name}" is not present in the examples manifest.`);
   }
 
-  const relativePath = entry.path ?? `${name}/template.json`;
+  const relativePath = entry.path;
   const templateUrl = `${getExamplesBaseUrl().replace(/\/$/, '')}/${relativePath}`;
   return { template: await fetchJson<Record<string, unknown>>(templateUrl), source: 'remote', url: templateUrl };
 }
@@ -134,25 +134,31 @@ function normalizeManifest(raw: unknown): ExampleManifest {
 function normalizeEntries(rawTemplates: unknown[]): ExampleManifestEntry[] {
   return rawTemplates
     .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
-    .map((entry) => ({
-      ...entry,
-      name: typeof entry.name === 'string' ? entry.name : '',
-      author: typeof entry.author === 'string' ? entry.author : undefined,
-      path: typeof entry.path === 'string' ? entry.path : undefined,
-      thumbnailPath: typeof entry.thumbnailPath === 'string' ? entry.thumbnailPath : undefined,
-      pageCount: typeof entry.pageCount === 'number' ? entry.pageCount : undefined,
-      fieldCount: typeof entry.fieldCount === 'number' ? entry.fieldCount : undefined,
-      schemaTypes: normalizeStringArray(entry.schemaTypes),
-      fontNames: normalizeStringArray(entry.fontNames),
-      hasCJK: typeof entry.hasCJK === 'boolean' ? entry.hasCJK : undefined,
-      basePdfKind: typeof entry.basePdfKind === 'string' ? entry.basePdfKind : undefined,
-    }))
+    .map((entry) => {
+      const name = typeof entry.name === 'string' ? entry.name : '';
+
+      return {
+        name,
+        author: typeof entry.author === 'string' && entry.author.length > 0 ? entry.author : 'pdfme',
+        path: typeof entry.path === 'string' && entry.path.length > 0 ? entry.path : `${name}/template.json`,
+        thumbnailPath:
+          typeof entry.thumbnailPath === 'string' && entry.thumbnailPath.length > 0
+            ? entry.thumbnailPath
+            : `${name}/thumbnail.png`,
+        pageCount: typeof entry.pageCount === 'number' && Number.isFinite(entry.pageCount) ? entry.pageCount : 0,
+        fieldCount: typeof entry.fieldCount === 'number' && Number.isFinite(entry.fieldCount) ? entry.fieldCount : 0,
+        schemaTypes: normalizeStringArray(entry.schemaTypes),
+        fontNames: normalizeStringArray(entry.fontNames),
+        hasCJK: typeof entry.hasCJK === 'boolean' ? entry.hasCJK : false,
+        basePdfKind: typeof entry.basePdfKind === 'string' && entry.basePdfKind.length > 0 ? entry.basePdfKind : 'unknown',
+      };
+    })
     .filter((entry) => entry.name.length > 0);
 }
 
-function normalizeStringArray(value: unknown): string[] | undefined {
+function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
-    return undefined;
+    return [];
   }
 
   return value.filter((item): item is string => typeof item === 'string' && item.length > 0);
