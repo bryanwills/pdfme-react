@@ -100,6 +100,27 @@ describe('validate command', () => {
     expect(result.exitCode).toBe(1);
   });
 
+  it('--strict --json preserves the validate contract', () => {
+    const template = {
+      basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+      schemas: [[
+        { name: 'wide', type: 'text', position: { x: 200, y: 20 }, width: 50, height: 15 },
+      ]],
+    };
+    const file = join(TMP, 'oob-strict-json.json');
+    writeFileSync(file, JSON.stringify(template));
+
+    const result = runCli(['validate', file, '--strict', '--json']);
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.warnings[0]).toContain('extends beyond page width');
+    expect(parsed.inspection.schemaTypes).toEqual(['text']);
+    expect(parsed.inspection.requiredPlugins).toEqual(['text']);
+  });
+
   it('--json outputs structured result', () => {
     const template = {
       basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
@@ -117,6 +138,17 @@ describe('validate command', () => {
     expect(parsed.valid).toBe(true);
     expect(parsed.pages).toBe(1);
     expect(parsed.fields).toBe(1);
+    expect(parsed.inspection).toEqual({
+      schemaTypes: ['text'],
+      requiredPlugins: ['text'],
+      requiredFonts: [],
+      basePdf: {
+        kind: 'blank',
+        width: 210,
+        height: 297,
+        paperSize: 'A4 portrait',
+      },
+    });
   });
 
   it('accepts unified job files', () => {
@@ -159,6 +191,10 @@ describe('validate command', () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.mode).toBe('job');
     expect(parsed.valid).toBe(true);
+    expect(parsed.inspection.schemaTypes).toEqual(['text']);
+    expect(parsed.inspection.requiredPlugins).toEqual(['text']);
+    expect(parsed.inspection.requiredFonts).toEqual(['NotoSerifJP']);
+    expect(parsed.inspection.basePdf.kind).toBe('blank');
   });
 
   it('accepts stdin input', () => {
@@ -176,6 +212,45 @@ describe('validate command', () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.mode).toBe('template');
     expect(parsed.valid).toBe(true);
+    expect(parsed.inspection.schemaTypes).toEqual(['text']);
+    expect(parsed.inspection.requiredFonts).toEqual([]);
+  });
+
+  it('keeps inspection summary on validation errors', () => {
+    const template = {
+      basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+      schemas: [[
+        {
+          name: 'title',
+          type: 'textbox',
+          fontName: 'NotoSerifJP',
+          position: { x: 20, y: 20 },
+          width: 170,
+          height: 15,
+        },
+      ]],
+    };
+    const file = join(TMP, 'json-error.json');
+    writeFileSync(file, JSON.stringify(template));
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.errors[0]).toContain('unknown type "textbox"');
+    expect(parsed.inspection).toEqual({
+      schemaTypes: ['textbox'],
+      requiredPlugins: [],
+      requiredFonts: ['NotoSerifJP'],
+      basePdf: {
+        kind: 'blank',
+        width: 210,
+        height: 297,
+        paperSize: 'A4 portrait',
+      },
+    });
   });
 
   it('rejects unknown flags with structured JSON output', () => {

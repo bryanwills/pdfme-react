@@ -8,7 +8,7 @@ import {
   runWithContract,
 } from '../contract.js';
 import { schemaTypes } from '../schema-plugins.js';
-import { readJsonFile, readJsonFromStdin, resolveBasePdf } from '../utils.js';
+import { detectPaperSize, readJsonFile, readJsonFromStdin, resolveBasePdf } from '../utils.js';
 
 const KNOWN_TEMPLATE_KEYS = new Set(['author', 'basePdf', 'columns', 'pdfmeVersion', 'schemas']);
 const KNOWN_JOB_KEYS = new Set(['template', 'inputs', 'options']);
@@ -28,6 +28,20 @@ interface ValidationResult {
   warnings: string[];
   pages: number;
   fields: number;
+}
+
+interface ValidationInspection {
+  schemaTypes: string[];
+  requiredPlugins: string[];
+  requiredFonts: string[];
+  basePdf: {
+    kind: string;
+    width?: number;
+    height?: number;
+    paperSize?: string | null;
+    path?: string;
+    resolvedPath?: string;
+  };
 }
 
 interface ValidationSource {
@@ -73,7 +87,6 @@ function levenshtein(a: string, b: string): number {
 function validateTemplate(template: Record<string, unknown>): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  let totalFields = 0;
 
   try {
     checkTemplate(template);
@@ -81,11 +94,12 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
     errors.push(error instanceof Error ? error.message : String(error));
   }
 
-  const schemaPages = template.schemas as Record<string, unknown>[][] | undefined;
-  if (!Array.isArray(schemaPages)) {
+  const schemaPages = normalizeSchemaPages(template.schemas);
+  if (schemaPages.length === 0) {
     return { errors, warnings, pages: 0, fields: 0 };
   }
 
+  const totalFields = schemaPages.reduce((sum, page) => sum + page.length, 0);
   let pageWidth = 210;
   let pageHeight = 297;
   if (template.basePdf && typeof template.basePdf === 'object' && 'width' in (template.basePdf as object)) {
@@ -103,7 +117,6 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
 
     for (const schema of page) {
       if (typeof schema !== 'object' || schema === null) continue;
-      totalFields++;
 
       const name = schema.name as string;
       const type = schema.type as string;
@@ -156,6 +169,23 @@ function validateTemplate(template: Record<string, unknown>): ValidationResult {
   return { errors, warnings, pages: schemaPages.length, fields: totalFields };
 }
 
+function inspectTemplate(
+  template: Record<string, unknown>,
+  templateDir?: string,
+): ValidationInspection {
+  const schemaPages = normalizeSchemaPages(template.schemas);
+  const flattenedSchemas = schemaPages.flat();
+  const collectedSchemaTypes = getUniqueStringValues(flattenedSchemas.map((schema) => schema.type));
+  const requiredFonts = getUniqueStringValues(flattenedSchemas.map((schema) => schema.fontName));
+
+  return {
+    schemaTypes: collectedSchemaTypes,
+    requiredPlugins: collectedSchemaTypes.filter((type) => schemaTypes.has(type)),
+    requiredFonts,
+    basePdf: summarizeBasePdf(template.basePdf, templateDir),
+  };
+}
+
 export default defineCommand({
   meta: {
     name: 'validate',
@@ -170,6 +200,7 @@ export default defineCommand({
       const templateUnknownKeys = Object.keys(source.template)
         .filter((key) => !KNOWN_TEMPLATE_KEYS.has(key))
         .sort();
+      const inspection = inspectTemplate(source.template, source.templateDir);
 
       const resolvedTemplate = resolveBasePdf(
         source.template,
@@ -209,6 +240,7 @@ export default defineCommand({
           fields: result.fields,
           errors: result.errors,
           warnings: result.warnings,
+          inspection,
         });
       } else {
         if (result.errors.length === 0 && result.warnings.length === 0) {
@@ -293,4 +325,64 @@ function assertRecordObject(value: unknown, label: string): Record<string, unkno
   }
 
   return value as Record<string, unknown>;
+}
+
+function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<string, unknown>>> {
+  if (!Array.isArray(rawSchemas)) {
+    return [];
+  }
+
+  return rawSchemas.map((page) => {
+    if (Array.isArray(page)) {
+      return page.filter((schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null);
+    }
+
+    if (typeof page === 'object' && page !== null) {
+      return Object.values(page).filter(
+        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+      );
+    }
+
+    return [];
+  });
+}
+
+function getUniqueStringValues(values: unknown[]): string[] {
+  return [...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0))].sort();
+}
+
+function summarizeBasePdf(basePdf: unknown, templateDir: string | undefined): ValidationInspection['basePdf'] {
+  if (typeof basePdf === 'string') {
+    if (basePdf.startsWith('data:')) {
+      return { kind: 'dataUri' };
+    }
+
+    if (basePdf.endsWith('.pdf')) {
+      return {
+        kind: 'pdfPath',
+        path: basePdf,
+        resolvedPath: templateDir ? resolve(templateDir, basePdf) : resolve(basePdf),
+      };
+    }
+
+    return { kind: 'string' };
+  }
+
+  if (basePdf && typeof basePdf === 'object') {
+    if ('width' in basePdf && 'height' in basePdf) {
+      const width = typeof (basePdf as { width?: unknown }).width === 'number' ? (basePdf as { width: number }).width : undefined;
+      const height =
+        typeof (basePdf as { height?: unknown }).height === 'number' ? (basePdf as { height: number }).height : undefined;
+
+      return {
+        kind: 'blank',
+        width,
+        height,
+        paperSize: width !== undefined && height !== undefined ? detectPaperSize(width, height) : null,
+      };
+    }
+
+    return { kind: 'object' };
+  }
+  return { kind: 'missing' };
 }
