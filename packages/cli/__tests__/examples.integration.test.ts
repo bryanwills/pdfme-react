@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -9,6 +9,9 @@ const CLI = join(__dirname, '..', 'dist', 'index.js');
 const PRELOAD = pathToFileURL(join(__dirname, 'fixtures', 'fetch-fixture-loader.mjs')).href;
 const TMP = join(__dirname, '..', '.test-tmp-examples-integration');
 const ASSETS_DIR = resolve(__dirname, '..', '..', '..', 'playground', 'public', 'template-assets');
+const INDEX_PATH = join(ASSETS_DIR, 'index.json');
+const MANIFEST_PATH = join(ASSETS_DIR, 'manifest.json');
+const VERSIONED_MANIFEST_DIR = join(ASSETS_DIR, 'manifests');
 const FONT_FIXTURES_DIR = resolve(
   __dirname,
   '..',
@@ -20,6 +23,26 @@ const FONT_FIXTURES_DIR = resolve(
   'assets',
   'fonts',
 );
+const CLI_PACKAGE_JSON_PATH = resolve(__dirname, '..', 'package.json');
+
+interface ExampleManifestEntry {
+  name: string;
+  author: string;
+  path: string;
+  thumbnailPath: string;
+  pageCount: number;
+  fieldCount: number;
+  schemaTypes: string[];
+  fontNames: string[];
+  hasCJK: boolean;
+  basePdfKind: string;
+}
+
+interface ExampleManifest {
+  schemaVersion: number;
+  cliVersion: string;
+  templates: ExampleManifestEntry[];
+}
 
 function createFixtureEnv(rootDir: string): NodeJS.ProcessEnv {
   const homeDir = join(rootDir, 'home');
@@ -52,6 +75,91 @@ function runCli(
   }
 }
 
+function readJson<T>(filePath: string): T {
+  return JSON.parse(readFileSync(filePath, 'utf8')) as T;
+}
+
+function listPlaygroundTemplateNames(): string[] {
+  return readdirSync(ASSETS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join(ASSETS_DIR, entry.name, 'template.json')))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function normalizeSchemas(rawSchemas: unknown): Array<Array<Record<string, unknown>>> {
+  if (!Array.isArray(rawSchemas)) {
+    return [];
+  }
+
+  return rawSchemas.map((page) => {
+    if (Array.isArray(page)) {
+      return page.filter((schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null);
+    }
+
+    if (typeof page === 'object' && page !== null) {
+      return Object.values(page).filter(
+        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+      );
+    }
+
+    return [];
+  });
+}
+
+function hasCjkContent(schemas: Array<Record<string, unknown>>): boolean {
+  return schemas.some((schema) =>
+    ['content', 'title', 'placeholder'].some(
+      (key) => typeof schema[key] === 'string' && /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff]/.test(schema[key]),
+    ),
+  );
+}
+
+function detectBasePdfKind(basePdf: unknown): string {
+  if (typeof basePdf === 'string') {
+    if (basePdf.startsWith('data:')) return 'dataUri';
+    if (basePdf.endsWith('.pdf')) return 'pdfPath';
+    return 'string';
+  }
+
+  if (basePdf && typeof basePdf === 'object') {
+    if ('width' in basePdf && 'height' in basePdf) return 'blank';
+    return 'object';
+  }
+
+  return 'unknown';
+}
+
+function buildExpectedManifestEntry(name: string): ExampleManifestEntry {
+  const template = readJson<Record<string, unknown>>(join(ASSETS_DIR, name, 'template.json'));
+  const schemas = normalizeSchemas(template.schemas);
+  const flattenedSchemas = schemas.flat();
+
+  return {
+    name,
+    author: typeof template.author === 'string' && template.author.length > 0 ? template.author : 'pdfme',
+    path: `${name}/template.json`,
+    thumbnailPath: `${name}/thumbnail.png`,
+    pageCount: schemas.length,
+    fieldCount: flattenedSchemas.length,
+    schemaTypes: [
+      ...new Set(
+        flattenedSchemas
+          .map((schema) => schema.type)
+          .filter((type): type is string => typeof type === 'string' && type.length > 0),
+      ),
+    ].sort(),
+    fontNames: [
+      ...new Set(
+        flattenedSchemas
+          .map((schema) => schema.fontName)
+          .filter((font): font is string => typeof font === 'string' && font.length > 0),
+      ),
+    ].sort(),
+    hasCJK: hasCjkContent(flattenedSchemas),
+    basePdfKind: detectBasePdfKind(template.basePdf),
+  };
+}
+
 describe('examples integration smoke', () => {
   afterEach(() => {
     rmSync(TMP, { recursive: true, force: true });
@@ -82,6 +190,30 @@ describe('examples integration smoke', () => {
     expect(existsSync(pdfPath)).toBe(true);
   });
 
+  it('keeps manifest and playground assets in sync', () => {
+    const manifest = readJson<ExampleManifest>(MANIFEST_PATH);
+    const index = readJson<ExampleManifestEntry[]>(INDEX_PATH);
+    const cliPackageJson = readJson<{ version: string }>(CLI_PACKAGE_JSON_PATH);
+    const versionedManifestPath = join(VERSIONED_MANIFEST_DIR, `${cliPackageJson.version}.json`);
+
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.cliVersion).toBe(cliPackageJson.version);
+    expect(manifest.templates).toEqual(index);
+    expect(existsSync(versionedManifestPath)).toBe(true);
+    expect(readJson<ExampleManifest>(versionedManifestPath)).toEqual(manifest);
+
+    const manifestNames = manifest.templates.map((entry) => entry.name).sort();
+    expect(manifestNames).toEqual(listPlaygroundTemplateNames());
+
+    const expectedEntries = manifest.templates.map(({ name }) => buildExpectedManifestEntry(name));
+    expect(manifest.templates).toEqual(expectedEntries);
+
+    for (const entry of manifest.templates) {
+      expect(existsSync(join(ASSETS_DIR, entry.path))).toBe(true);
+      expect(existsSync(join(ASSETS_DIR, entry.thumbnailPath))).toBe(true);
+    }
+  });
+
   it('lists manifest metadata through the CLI', () => {
     mkdirSync(TMP, { recursive: true });
     const result = runCli(['examples', '--list', '--json'], {
@@ -92,8 +224,8 @@ describe('examples integration smoke', () => {
     const payload = JSON.parse(result.stdout);
     expect(payload.ok).toBe(true);
     expect(payload.source).toBe('remote');
-    expect(Array.isArray(payload.manifest.templates)).toBe(true);
-    expect(payload.manifest.templates.length).toBeGreaterThan(0);
+    expect(payload.baseUrl).toBe('https://fixtures.example.com/template-assets');
+    expect(payload.manifest).toEqual(readJson<ExampleManifest>(MANIFEST_PATH));
   });
 
   it(
@@ -101,9 +233,7 @@ describe('examples integration smoke', () => {
     () => {
       mkdirSync(TMP, { recursive: true });
       const env = createFixtureEnv(TMP);
-      const manifest = JSON.parse(readFileSync(join(ASSETS_DIR, 'manifest.json'), 'utf8')) as {
-        templates: Array<{ name: string }>;
-      };
+      const manifest = readJson<ExampleManifest>(MANIFEST_PATH);
 
       for (const { name } of manifest.templates) {
         const jobPath = join(TMP, `${name}.job.json`);
