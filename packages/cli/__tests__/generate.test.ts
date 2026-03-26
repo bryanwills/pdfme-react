@@ -368,6 +368,47 @@ describe('generate command', () => {
     expect(parsed.pdf).toBe(outputPath);
   });
 
+  it('returns structured EUNSUPPORTED for Google Fonts stylesheet API URLs', () => {
+    const workDir = join(TMP, 'options-font-google-font-stylesheet');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.googleapis.com/css2?family=Pinyon+Script',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['generate', join(workDir, 'job.json'), '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EUNSUPPORTED');
+    expect(parsed.error.message).toContain('unsupported Google Fonts stylesheet API');
+  });
+
   it('supports data URI ttf sources in options.font', () => {
     const workDir = join(TMP, 'options-font-data-uri');
     const fontData = readFileSync(resolve(FONT_FIXTURES_DIR, 'PinyonScript-Regular.ttf')).toString('base64');

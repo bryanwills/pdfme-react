@@ -229,7 +229,8 @@ pdfme generate job.json -o out.pdf --image --json
 - `options.font.<name>.data`
   - local `.ttf` path
     - unified job / template JSON のあるディレクトリ基準で解決
-  - public host を向く `https://...` / `http://...` の `.ttf` URL
+  - public host を向く `https://...` / `http://...` の direct `.ttf` asset URL
+    - `fonts.gstatic.com/...ttf` のような Google Fonts asset URL は official remote source として扱う
   - `.ttf` を表す `data:` URI
   - `Uint8Array` / `ArrayBuffer`
     - これは programmatic 入力では有効だが、純粋な JSON job では通常使わない
@@ -243,10 +244,16 @@ unsupported として fail-fast に寄せるもの:
 - `.otf` / `.ttc` など `.ttf` 以外を明示する source
 - loopback / private host を含む unsafe `http(s)` URL
 - `file:` / `ftp:` など非 `http(s)` URL
+- `fonts.googleapis.com/css*` のような Google Fonts stylesheet API URL
+
+現時点で未サポートのもの:
+
+- Google Fonts の family / weight / style を declarative に解決する専用 surface
+- CSS 経由で font binary を辿る remote font workflow
 
 warning に留めるもの:
 
-- public host の `http(s)` URL だが path に拡張子がなく `.ttf` と明示できない source
+- public host の `http(s)` URL だが path に拡張子がなく raw `.ttf` asset と明示できない source
 - `data:` URI だが media type から `.ttf` と明示できない source
 
 `doctor fonts` はこの source contract をそのまま machine-readable に返し、`generate` は local path を事前解決して structured error に寄せる。

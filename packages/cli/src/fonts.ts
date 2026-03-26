@@ -11,10 +11,12 @@ const NOTO_SANS_JP_URL =
 export const NOTO_CACHE_FILE = join(CACHE_DIR, 'NotoSansJP-Regular.ttf');
 
 export type ExplicitFontSourceKind = 'localPath' | 'url' | 'dataUri' | 'inlineBytes' | 'invalid';
+export type ExplicitFontRemoteProvider = 'genericPublic' | 'googleFontsAsset' | 'googleFontsStylesheet';
 
 export interface ExplicitFontSourceDiagnosis {
   fontName: string;
   kind: ExplicitFontSourceKind;
+  provider?: ExplicitFontRemoteProvider;
   path?: string;
   resolvedPath?: string;
   exists?: boolean;
@@ -299,18 +301,24 @@ function analyzeUrlFontSource(
 } {
   const issues: string[] = [];
   const warnings: string[] = [];
+  const provider = detectRemoteFontProvider(url);
   const formatHint = detectPathFormatHint(url.pathname);
   const formatResult = evaluateFontFormat(fontName, formatHint, `Font URL for ${fontName}`);
 
+  if (provider === 'googleFontsStylesheet') {
+    issues.push(
+      `Font URL for ${fontName} uses the unsupported Google Fonts stylesheet API. Use the direct fonts.gstatic.com asset URL or download the font locally.`,
+    );
+  }
   if (!isUrlSafeToFetch(url.toString())) {
     issues.push(
       `Font URL for ${fontName} is invalid or unsafe. Only http: and https: URLs pointing to public hosts are allowed.`,
     );
   }
-  if (formatResult.issue) {
+  if (provider !== 'googleFontsStylesheet' && formatResult.issue) {
     issues.push(formatResult.issue);
   }
-  if (formatResult.warning) {
+  if (provider !== 'googleFontsStylesheet' && formatResult.warning) {
     warnings.push(formatResult.warning);
   }
 
@@ -318,6 +326,7 @@ function analyzeUrlFontSource(
     source: {
       fontName,
       kind: 'url',
+      provider,
       url: url.toString(),
       formatHint,
       supportedFormat: formatResult.supportedFormat,
@@ -422,6 +431,17 @@ function tryParseUrl(value: string): URL | null {
   } catch {
     return null;
   }
+}
+
+function detectRemoteFontProvider(url: URL): ExplicitFontRemoteProvider {
+  const hostname = url.hostname.toLowerCase();
+  if (hostname === 'fonts.gstatic.com' || hostname.endsWith('.fonts.gstatic.com')) {
+    return 'googleFontsAsset';
+  }
+  if (hostname === 'fonts.googleapis.com' || hostname.endsWith('.fonts.googleapis.com')) {
+    return 'googleFontsStylesheet';
+  }
+  return 'genericPublic';
 }
 
 function getDataUriMediaType(value: string): string | undefined {

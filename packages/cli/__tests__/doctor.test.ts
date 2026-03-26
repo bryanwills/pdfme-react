@@ -150,6 +150,58 @@ describe('doctor command', () => {
     expect(parsed.issues).toEqual([]);
   });
 
+  it('classifies direct Google Fonts asset URLs as supported remote font sources', () => {
+    const workDir = join(TMP, 'doctor-google-font-asset');
+    const file = join(workDir, 'job.json');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.gstatic.com/s/pinyonscript/v22/6xKpdSJbL9-e9LuoeQiDRQR8aOLQO4bhiDY.ttf',
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['doctor', 'fonts', file, '--json']);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('fonts');
+    expect(parsed.healthy).toBe(true);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'PinyonScript',
+          kind: 'url',
+          provider: 'googleFontsAsset',
+          supportedFormat: true,
+          needsNetwork: true,
+        }),
+      ]),
+    );
+  });
+
   it('classifies data URI font sources without treating them as runtime issues', () => {
     const workDir = join(TMP, 'doctor-font-data-uri');
     const file = join(workDir, 'job.json');
@@ -254,6 +306,61 @@ describe('doctor command', () => {
     );
     expect(parsed.issues).toContain(
       'Font URL for UnsafeFont is invalid or unsafe. Only http: and https: URLs pointing to public hosts are allowed.',
+    );
+  });
+
+  it('rejects Google Fonts stylesheet API URLs as blocking issues', () => {
+    const workDir = join(TMP, 'doctor-google-font-stylesheet');
+    const file = join(workDir, 'job.json');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.googleapis.com/css2?family=Pinyon+Script',
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['doctor', 'fonts', file, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('fonts');
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'PinyonScript',
+          kind: 'url',
+          provider: 'googleFontsStylesheet',
+          url: 'https://fonts.googleapis.com/css2?family=Pinyon+Script',
+          needsNetwork: true,
+        }),
+      ]),
+    );
+    expect(parsed.issues).toContain(
+      'Font URL for PinyonScript uses the unsupported Google Fonts stylesheet API. Use the direct fonts.gstatic.com asset URL or download the font locally.',
     );
   });
 

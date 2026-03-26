@@ -1,8 +1,8 @@
 import { accessSync, constants, existsSync } from 'node:fs';
-import { dirname, extname, resolve } from 'node:path';
+import { dirname } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { defineCommand } from 'citty';
-import { checkGenerateProps, DEFAULT_FONT_NAME, isUrlSafeToFetch } from '@pdfme/common';
+import { checkGenerateProps, DEFAULT_FONT_NAME } from '@pdfme/common';
 import {
   assertNoUnknownFlags,
   fail,
@@ -18,7 +18,12 @@ import {
   summarizeBasePdf,
   validateTemplate,
 } from '../diagnostics.js';
-import { NOTO_CACHE_FILE } from '../fonts.js';
+import {
+  analyzeExplicitFontRecord,
+  NOTO_CACHE_FILE,
+  type ExplicitFontRemoteProvider,
+  type ExplicitFontSourceDiagnosis,
+} from '../fonts.js';
 import {
   getImageOutputPaths,
   getSafeDefaultOutputPathIssue,
@@ -123,6 +128,7 @@ interface FontSourceDiagnosis {
   fontName: string;
   source: 'explicit' | 'implicit';
   kind: FontSourceKind;
+  provider?: ExplicitFontRemoteProvider;
   path?: string;
   resolvedPath?: string;
   exists?: boolean;
@@ -690,7 +696,7 @@ function normalizeExplicitFontConfig(
   }
 
   const fontRecord = font as Record<string, unknown>;
-  const sourceDiagnostics = diagnoseExplicitFontSources(fontRecord, templateDir);
+  const sourceDiagnostics = analyzeExplicitFontRecord(fontRecord, templateDir);
 
   return {
     issues: sourceDiagnostics.issues,
@@ -698,253 +704,14 @@ function normalizeExplicitFontConfig(
     fontNames: Object.keys(fontRecord).sort(),
     fontRecord,
     optionsRecord,
-    sources: sourceDiagnostics.sources,
+    sources: sortFontSources(sourceDiagnostics.sources.map(toDoctorExplicitSource)),
   };
 }
 
-function diagnoseExplicitFontSources(
-  fontRecord: Record<string, unknown>,
-  templateDir?: string,
-): {
-  sources: FontSourceDiagnosis[];
-  issues: string[];
-  warnings: string[];
-} {
-  const issues: string[] = [];
-  const warnings: string[] = [];
-  const sources: FontSourceDiagnosis[] = [];
-
-  for (const fontName of Object.keys(fontRecord).sort()) {
-    const result = diagnoseExplicitFontSource(fontName, fontRecord[fontName], templateDir);
-    sources.push(result.source);
-    issues.push(...result.issues);
-    warnings.push(...result.warnings);
-  }
-
-  return { sources: sortFontSources(sources), issues, warnings };
-}
-
-function diagnoseExplicitFontSource(
-  fontName: string,
-  value: unknown,
-  templateDir?: string,
-): {
-  source: FontSourceDiagnosis;
-  issues: string[];
-  warnings: string[];
-} {
-  const issues: string[] = [];
-  const warnings: string[] = [];
-
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    issues.push(`Font config for ${fontName} must be an object with a "data" field.`);
-    return {
-      source: {
-        fontName,
-        source: 'explicit',
-        kind: 'invalid',
-        needsNetwork: false,
-        dataType: getValueType(value),
-      },
-      issues,
-      warnings,
-    };
-  }
-
-  const record = value as Record<string, unknown>;
-  const data = record.data;
-  if (data === undefined) {
-    issues.push(`Font config for ${fontName} is missing "data".`);
-    return {
-      source: {
-        fontName,
-        source: 'explicit',
-        kind: 'invalid',
-        needsNetwork: false,
-        dataType: 'missing',
-      },
-      issues,
-      warnings,
-    };
-  }
-
-  if (typeof data === 'string') {
-    if (data.startsWith('data:')) {
-      return diagnoseDataUriFontSource(fontName, data);
-    }
-
-    const parsedUrl = tryParseUrl(data);
-    if (parsedUrl) {
-      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-        return diagnoseUrlFontSource(fontName, parsedUrl);
-      }
-
-      issues.push(
-        `Font source for ${fontName} uses unsupported URL protocol "${parsedUrl.protocol}". Use a local .ttf path, a data URI, or an https URL.`,
-      );
-      return {
-        source: {
-          fontName,
-          source: 'explicit',
-          kind: 'invalid',
-          needsNetwork: false,
-          dataType: 'string',
-        },
-        issues,
-        warnings,
-      };
-    }
-
-    return diagnoseLocalFontSource(fontName, data, templateDir);
-  }
-
-  if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
-    return {
-      source: {
-        fontName,
-        source: 'explicit',
-        kind: 'inlineBytes',
-        needsNetwork: false,
-        dataType: getValueType(data),
-      },
-      issues,
-      warnings,
-    };
-  }
-
-  issues.push(`Font source for ${fontName} has unsupported data type ${getValueType(data)}.`);
+function toDoctorExplicitSource(source: ExplicitFontSourceDiagnosis): FontSourceDiagnosis {
   return {
-    source: {
-      fontName,
-      source: 'explicit',
-      kind: 'invalid',
-      needsNetwork: false,
-      dataType: getValueType(data),
-    },
-    issues,
-    warnings,
-  };
-}
-
-function diagnoseLocalFontSource(
-  fontName: string,
-  pathValue: string,
-  templateDir?: string,
-): {
-  source: FontSourceDiagnosis;
-  issues: string[];
-  warnings: string[];
-} {
-  const issues: string[] = [];
-  const warnings: string[] = [];
-  const resolvedPath = templateDir ? resolve(templateDir, pathValue) : resolve(pathValue);
-  const exists = existsSync(resolvedPath);
-  const formatHint = detectPathFormatHint(resolvedPath);
-  const formatResult = evaluateFontFormat(fontName, formatHint, `Font file for ${fontName}`);
-
-  if (!exists) {
-    issues.push(`Font file for ${fontName} not found: ${resolvedPath}`);
-  }
-  if (formatResult.issue) {
-    issues.push(formatResult.issue);
-  }
-  if (formatResult.warning) {
-    warnings.push(formatResult.warning);
-  }
-
-  return {
-    source: {
-      fontName,
-      source: 'explicit',
-      kind: 'localPath',
-      path: pathValue,
-      resolvedPath,
-      exists,
-      formatHint,
-      supportedFormat: formatResult.supportedFormat,
-      needsNetwork: false,
-      dataType: 'string',
-    },
-    issues,
-    warnings,
-  };
-}
-
-function diagnoseUrlFontSource(
-  fontName: string,
-  url: URL,
-): {
-  source: FontSourceDiagnosis;
-  issues: string[];
-  warnings: string[];
-} {
-  const issues: string[] = [];
-  const warnings: string[] = [];
-  const formatHint = detectPathFormatHint(url.pathname);
-  const formatResult = evaluateFontFormat(fontName, formatHint, `Font URL for ${fontName}`);
-
-  if (!isUrlSafeToFetch(url.toString())) {
-    issues.push(
-      `Font URL for ${fontName} is invalid or unsafe. Only http: and https: URLs pointing to public hosts are allowed.`,
-    );
-  }
-  if (formatResult.issue) {
-    issues.push(formatResult.issue);
-  }
-  if (formatResult.warning) {
-    warnings.push(formatResult.warning);
-  }
-
-  return {
-    source: {
-      fontName,
-      source: 'explicit',
-      kind: 'url',
-      url: url.toString(),
-      formatHint,
-      supportedFormat: formatResult.supportedFormat,
-      needsNetwork: true,
-      dataType: 'string',
-    },
-    issues,
-    warnings,
-  };
-}
-
-function diagnoseDataUriFontSource(
-  fontName: string,
-  dataUri: string,
-): {
-  source: FontSourceDiagnosis;
-  issues: string[];
-  warnings: string[];
-} {
-  const issues: string[] = [];
-  const warnings: string[] = [];
-  const mediaType = getDataUriMediaType(dataUri);
-  const formatHint = detectDataUriFormatHint(mediaType);
-  const formatResult = evaluateFontFormat(fontName, formatHint, `Font data URI for ${fontName}`);
-
-  if (formatResult.issue) {
-    issues.push(formatResult.issue);
-  }
-  if (formatResult.warning) {
-    warnings.push(formatResult.warning);
-  }
-
-  return {
-    source: {
-      fontName,
-      source: 'explicit',
-      kind: 'dataUri',
-      mediaType,
-      formatHint,
-      supportedFormat: formatResult.supportedFormat,
-      needsNetwork: false,
-      dataType: 'string',
-    },
-    issues,
-    warnings,
+    ...source,
+    source: 'explicit',
   };
 }
 
@@ -984,76 +751,6 @@ function sortFontSources(sources: FontSourceDiagnosis[]): FontSourceDiagnosis[] 
   return [...sources].sort(
     (a, b) => a.fontName.localeCompare(b.fontName) || a.kind.localeCompare(b.kind),
   );
-}
-
-function tryParseUrl(value: string): URL | null {
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-}
-
-function getDataUriMediaType(value: string): string | undefined {
-  const match = value.match(/^data:([^;,]+)/i);
-  return match ? match[1] : undefined;
-}
-
-function detectPathFormatHint(value: string): string | null {
-  const extension = extname(value).toLowerCase();
-  return extension ? extension.slice(1) : null;
-}
-
-function detectDataUriFormatHint(mediaType?: string): string | null {
-  if (!mediaType) {
-    return null;
-  }
-
-  const lower = mediaType.toLowerCase();
-  if (lower.includes('ttf') || lower.endsWith('/sfnt')) {
-    return 'ttf';
-  }
-  if (lower.includes('otf')) {
-    return 'otf';
-  }
-  if (lower.includes('ttc')) {
-    return 'ttc';
-  }
-  return null;
-}
-
-function evaluateFontFormat(
-  fontName: string,
-  formatHint: string | null,
-  sourceLabel: string,
-): {
-  supportedFormat?: boolean;
-  issue?: string;
-  warning?: string;
-} {
-  if (formatHint === 'ttf') {
-    return { supportedFormat: true };
-  }
-
-  if (formatHint === null) {
-    return {
-      warning: `${sourceLabel} does not clearly advertise a .ttf format. @pdfme/cli currently guarantees only .ttf custom fonts.`,
-    };
-  }
-
-  return {
-    supportedFormat: false,
-    issue: `${sourceLabel} uses .${formatHint}. @pdfme/cli currently guarantees only .ttf custom fonts for ${fontName}.`,
-  };
-}
-
-function getValueType(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  if (value === null) return 'null';
-  if (value instanceof Uint8Array) return 'Uint8Array';
-  if (value instanceof ArrayBuffer) return 'ArrayBuffer';
-  if (Array.isArray(value)) return 'array';
-  return typeof value;
 }
 
 function printEnvironmentReport(
