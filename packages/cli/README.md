@@ -244,6 +244,11 @@ unsupported として fail-fast に寄せるもの:
 - loopback / private host を含む unsafe `http(s)` URL
 - `file:` / `ftp:` など非 `http(s)` URL
 
+warning に留めるもの:
+
+- public host の `http(s)` URL だが path に拡張子がなく `.ttf` と明示できない source
+- `data:` URI だが media type から `.ttf` と明示できない source
+
 `doctor fonts` はこの source contract をそのまま machine-readable に返し、`generate` は local path を事前解決して structured error に寄せる。
 
 ### 終了コード

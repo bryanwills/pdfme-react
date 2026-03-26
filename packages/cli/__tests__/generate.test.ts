@@ -411,6 +411,97 @@ describe('generate command', () => {
     expect(parsed.pdf).toBe(outputPath);
   });
 
+  it('supports data URI font sources with ambiguous media types', () => {
+    const workDir = join(TMP, 'options-font-data-uri-ambiguous-media-type');
+    const fontData = readFileSync(resolve(FONT_FIXTURES_DIR, 'PinyonScript-Regular.ttf')).toString('base64');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: `data:application/octet-stream;base64,${fontData}`,
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const outputPath = join(workDir, 'out.pdf');
+    const result = runCli(['generate', join(workDir, 'job.json'), '-o', outputPath, '--json']);
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(outputPath)).toBe(true);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.pdf).toBe(outputPath);
+  });
+
+  it('supports public font URLs without an extension in options.font', () => {
+    const workDir = join(TMP, 'options-font-url-without-extension');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.example.com/pinyonscript',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const outputPath = join(workDir, 'out.pdf');
+    const result = runCli(
+      ['generate', join(workDir, 'job.json'), '-o', outputPath, '--json'],
+      {
+        preload: FIXTURE_PRELOAD,
+        env: createFixtureEnv(workDir),
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(outputPath)).toBe(true);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.pdf).toBe(outputPath);
+  });
+
   it('returns structured EIO for missing local options.font files', () => {
     const workDir = join(TMP, 'options-font-missing-local');
     mkdirSync(workDir, { recursive: true });
@@ -492,6 +583,129 @@ describe('generate command', () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.error.code).toBe('EUNSUPPORTED');
     expect(parsed.error.message).toContain('.otf');
+  });
+
+  it('returns structured EUNSUPPORTED for file URL options.font sources', () => {
+    const workDir = join(TMP, 'options-font-file-url');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'file:///tmp/PinyonScript-Regular.ttf',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['generate', join(workDir, 'job.json'), '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EUNSUPPORTED');
+    expect(parsed.error.message).toContain('unsupported URL protocol "file:"');
+  });
+
+  it('returns structured EUNSUPPORTED for ftp URL options.font sources', () => {
+    const workDir = join(TMP, 'options-font-ftp-url');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'ftp://fonts.example.com/PinyonScript-Regular.ttf',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['generate', join(workDir, 'job.json'), '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EUNSUPPORTED');
+    expect(parsed.error.message).toContain('unsupported URL protocol "ftp:"');
+  });
+
+  it('returns structured EUNSUPPORTED for private-host font URLs', () => {
+    const workDir = join(TMP, 'options-font-private-host-url');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'http://192.168.10.42/PinyonScript-Regular.ttf',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['generate', join(workDir, 'job.json'), '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EUNSUPPORTED');
+    expect(parsed.error.message).toContain('invalid or unsafe');
   });
 
   it('prefers --font over conflicting options.font entries', () => {

@@ -257,6 +257,182 @@ describe('doctor command', () => {
     );
   });
 
+  it('rejects file and ftp font URL protocols as blocking issues', () => {
+    const workDir = join(TMP, 'doctor-font-unsupported-protocols');
+    const file = join(workDir, 'job.json');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'LocalFileFont',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            LocalFileFont: {
+              data: 'file:///tmp/LocalFileFont.ttf',
+            },
+            FtpFont: {
+              data: 'ftp://fonts.example.com/FtpFont.ttf',
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['doctor', 'fonts', file, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('fonts');
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'LocalFileFont',
+          kind: 'invalid',
+          dataType: 'string',
+        }),
+        expect.objectContaining({
+          fontName: 'FtpFont',
+          kind: 'invalid',
+          dataType: 'string',
+        }),
+      ]),
+    );
+    expect(parsed.issues).toContain(
+      'Font source for LocalFileFont uses unsupported URL protocol "file:". Use a local .ttf path, a data URI, or an https URL.',
+    );
+    expect(parsed.issues).toContain(
+      'Font source for FtpFont uses unsupported URL protocol "ftp:". Use a local .ttf path, a data URI, or an https URL.',
+    );
+  });
+
+  it('warns when a data URI font source does not clearly advertise a ttf media type', () => {
+    const workDir = join(TMP, 'doctor-font-ambiguous-data-uri');
+    const file = join(workDir, 'job.json');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'BrandBytes',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            BrandBytes: {
+              data: 'data:application/octet-stream;base64,AAEAAA==',
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['doctor', 'fonts', file, '--json']);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('fonts');
+    expect(parsed.healthy).toBe(true);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'BrandBytes',
+          kind: 'dataUri',
+          mediaType: 'application/octet-stream',
+          formatHint: null,
+          needsNetwork: false,
+        }),
+      ]),
+    );
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.warnings).toContain(
+      'Font data URI for BrandBytes does not clearly advertise a .ttf format. @pdfme/cli currently guarantees only .ttf custom fonts.',
+    );
+  });
+
+  it('warns instead of failing for public font URLs without an extension', () => {
+    const workDir = join(TMP, 'doctor-font-extensionless-url');
+    const file = join(workDir, 'job.json');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'BrandUrl',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            BrandUrl: {
+              data: 'https://fonts.example.com/pinyonscript',
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['doctor', 'fonts', file, '--json']);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('fonts');
+    expect(parsed.healthy).toBe(true);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'BrandUrl',
+          kind: 'url',
+          url: 'https://fonts.example.com/pinyonscript',
+          formatHint: null,
+          needsNetwork: true,
+        }),
+      ]),
+    );
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.warnings).toContain(
+      'Font URL for BrandUrl does not clearly advertise a .ttf format. @pdfme/cli currently guarantees only .ttf custom fonts.',
+    );
+  });
+
   it('fails when CJK auto-font needs a non-writable empty cache', () => {
     const homeDir = join(TMP, 'readonly-home');
     const file = join(TMP, 'doctor-cjk-job.json');
@@ -511,6 +687,154 @@ describe('doctor command', () => {
       directory: join(workDir, 'artifacts'),
       paths: [join(workDir, 'artifacts', 'out-1.jpg'), join(workDir, 'artifacts', 'out-2.jpg')],
     });
+  });
+
+  it('reports non-writable explicit output directories as blocking runtime issues', () => {
+    const workDir = join(TMP, 'doctor-runtime-readonly-output');
+    const file = join(workDir, 'job.json');
+    const readonlyDir = join(workDir, 'readonly');
+    const outputPath = join(readonlyDir, 'out.pdf');
+    mkdirSync(readonlyDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+      }),
+    );
+
+    chmodSync(readonlyDir, 0o555);
+
+    try {
+      const result = runCli(['doctor', file, '-o', outputPath, '--json']);
+
+      expect(result.exitCode).toBe(1);
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed.ok).toBe(true);
+      expect(parsed.target).toBe('input');
+      expect(parsed.healthy).toBe(false);
+      expect(parsed.diagnosis.runtime.output).toEqual(
+        expect.objectContaining({
+          path: outputPath,
+          resolvedPath: outputPath,
+          writable: false,
+          checkedPath: readonlyDir,
+          checkedType: 'directory',
+          implicitDefaultProtected: false,
+        }),
+      );
+      expect(parsed.issues).toContain(
+        `Output directory is not writable for ${outputPath}: ${readonlyDir}.`,
+      );
+    } finally {
+      chmodSync(readonlyDir, 0o755);
+    }
+  });
+
+  it('reports parent path segments that are files as blocking runtime issues', () => {
+    const workDir = join(TMP, 'doctor-runtime-parent-is-file');
+    const file = join(workDir, 'job.json');
+    const blockedPath = join(workDir, 'blocked');
+    const outputPath = join(blockedPath, 'out.pdf');
+    mkdirSync(workDir, { recursive: true });
+    writeFileSync(blockedPath, 'not-a-directory');
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+      }),
+    );
+
+    const result = runCli(['doctor', file, '-o', outputPath, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('input');
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.diagnosis.runtime.output).toEqual(
+      expect.objectContaining({
+        path: outputPath,
+        resolvedPath: outputPath,
+        checkedPath: blockedPath,
+        checkedType: 'file',
+        implicitDefaultProtected: false,
+      }),
+    );
+    expect(parsed.issues).toContain(
+      `Output directory cannot be created because an existing path segment is not a directory: ${blockedPath}.`,
+    );
+  });
+
+  it('reports existing directories passed as output paths as blocking runtime issues', () => {
+    const workDir = join(TMP, 'doctor-runtime-output-is-directory');
+    const file = join(workDir, 'job.json');
+    const outputDir = join(workDir, 'artifacts');
+    mkdirSync(outputDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+      }),
+    );
+
+    const result = runCli(['doctor', file, '-o', outputDir, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('input');
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.diagnosis.runtime.output).toEqual(
+      expect.objectContaining({
+        path: outputDir,
+        resolvedPath: outputDir,
+        exists: true,
+        existingType: 'directory',
+        implicitDefaultProtected: false,
+      }),
+    );
+    expect(parsed.issues).toContain(
+      `Output path points to a directory: ${outputDir}. Choose a file path like out.pdf.`,
+    );
   });
 
   it('ignores runtime flags for doctor fonts health checks', () => {
