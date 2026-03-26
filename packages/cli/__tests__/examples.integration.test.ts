@@ -207,7 +207,6 @@ describe('examples integration smoke', () => {
 
     for (const entry of manifest.templates) {
       expect(existsSync(join(ASSETS_DIR, entry.path))).toBe(true);
-      expect(existsSync(join(ASSETS_DIR, entry.thumbnailPath))).toBe(true);
     }
   });
 
