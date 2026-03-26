@@ -10,6 +10,14 @@ const NOTO_SANS_JP_URL =
   'https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf';
 const NOTO_CACHE_FILE = join(CACHE_DIR, 'NotoSansJP-Regular.ttf');
 
+interface ResolveFontOptions {
+  fontArgs?: string[];
+  hasCJK: boolean;
+  noAutoFont: boolean;
+  verbose: boolean;
+  hasExplicitFontConfig?: boolean;
+}
+
 function ensureCacheDir(): void {
   if (!existsSync(CACHE_DIR)) {
     mkdirSync(CACHE_DIR, { recursive: true });
@@ -79,28 +87,62 @@ export function parseCustomFonts(fontArgs: string[]): Font {
 }
 
 export async function resolveFont(
-  fontArgs: string[] | undefined,
-  hasCJK: boolean,
-  noAutoFont: boolean,
-  verbose: boolean,
+  options: ResolveFontOptions,
 ): Promise<Font> {
+  const {
+    fontArgs,
+    hasCJK,
+    noAutoFont,
+    verbose,
+    hasExplicitFontConfig = false,
+  } = options;
+
   if (fontArgs && fontArgs.length > 0) {
     return parseCustomFonts(fontArgs);
   }
 
   const defaultFont = getDefaultFont();
 
-  if (hasCJK && !noAutoFont) {
-    const notoData = await downloadNotoSansJP(verbose);
-    if (notoData) {
-      return {
-        NotoSansJP: { data: notoData, fallback: true, subset: true },
-        ...Object.fromEntries(
-          Object.entries(defaultFont).map(([k, v]) => [k, { ...v, fallback: false }]),
-        ),
-      } as Font;
-    }
+  if (!hasCJK || hasExplicitFontConfig) {
+    return defaultFont;
   }
 
-  return defaultFont;
+  if (noAutoFont) {
+    fail(
+      'CJK text detected, but automatic NotoSansJP download is disabled by --noAutoFont and no explicit font source was provided. Provide --font or options.font.',
+      {
+        code: 'EFONT',
+        exitCode: 2,
+        details: {
+          fontName: 'NotoSansJP',
+          cacheFile: NOTO_CACHE_FILE,
+          autoFont: false,
+        },
+      },
+    );
+  }
+
+  const notoData = await downloadNotoSansJP(verbose);
+  if (!notoData) {
+    fail(
+      'CJK text detected, but NotoSansJP could not be resolved automatically. Re-run with network access, warm the font cache, or provide --font / options.font.',
+      {
+        code: 'EFONT',
+        exitCode: 2,
+        details: {
+          fontName: 'NotoSansJP',
+          cacheFile: NOTO_CACHE_FILE,
+          downloadUrl: NOTO_SANS_JP_URL,
+          autoFont: true,
+        },
+      },
+    );
+  }
+
+  return {
+    NotoSansJP: { data: notoData, fallback: true, subset: true },
+    ...Object.fromEntries(
+      Object.entries(defaultFont).map(([k, v]) => [k, { ...v, fallback: false }]),
+    ),
+  } as Font;
 }

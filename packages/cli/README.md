@@ -24,7 +24,7 @@ JSON 編集 → pdfme generate --image → PNG 読み取り → 視覚確認 →
 
 - **AI エージェント特化**: `--json` フラグで構造化出力、`--help` に豊富な使用例、エラーメッセージに修正案を含める
 - **machine interface 優先**: `--json` 指定時は stdout を JSON のみに固定し、失敗時も構造化エラーを返す
-- **日本語ユーザー対応**: CJK 文字を検出すると NotoSansJP を自動ダウンロード＆キャッシュ
+- **日本語ユーザー対応**: CJK 文字を検出すると NotoSansJP を自動ダウンロード＆キャッシュし、解決不能時は structured error を返す
 - **既存 PDF からのテンプレート作成ワークフロー**: `pdf2img` → `pdf2size` → テンプレート作成 → `generate --image` の一連フローをサポート
 - **npx でもローカルでも同等の体験**
 
@@ -212,8 +212,9 @@ pdfme generate job.json -o out.pdf --image --json
 `--font` 未指定時、テンプレートや入力データに CJK 文字 (日本語、中国語、韓国語) が含まれていると、NotoSansJP を自動的にダウンロードしてキャッシュする:
 
 - キャッシュ場所: `~/.pdfme/fonts/NotoSansJP-Regular.ttf`
-- オフライン時は Roboto にフォールバック + 警告
+- オフラインで自動取得できず、明示的なフォント指定もない場合は structured error (`EFONT`) を返す
 - `--noAutoFont` で無効化
+- `--noAutoFont` 使用時に CJK が含まれ、明示的なフォント指定がなければ structured error (`EFONT`) を返す
 - カスタムフォントは現時点で `.ttf` のみを強く保証し、`.otf` / `.ttc` は明示的にエラーにする
 
 ### 終了コード
@@ -222,7 +223,7 @@ pdfme generate job.json -o out.pdf --image --json
 |--------|------|
 | 0 | 成功 |
 | 1 | テンプレート/入力バリデーションエラー |
-| 2 | 生成時エラー (フォント、レンダリング等) |
+| 2 | runtime / font 解決エラー |
 | 3 | ファイル I/O エラー |
 
 ---

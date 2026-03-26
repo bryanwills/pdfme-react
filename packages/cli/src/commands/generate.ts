@@ -21,7 +21,7 @@ import {
 import { resolveFont } from '../fonts.js';
 import { detectCJKInTemplate, detectCJKInInputs } from '../cjk-detect.js';
 import { drawGridOnImage } from '../grid.js';
-import { schemaPlugins } from '../schema-plugins.js';
+import { schemaPlugins, schemaTypes } from '../schema-plugins.js';
 
 const generateArgs = {
   file: {
@@ -91,6 +91,7 @@ export default defineCommand({
 
       const template = resolveBasePdf(rawTemplate, args.basePdf, templateDir) as unknown as Template;
       const jobOptions = normalizeJobOptions(rawJobOptions);
+      assertSupportedSchemaTypes(template);
 
       const fontArgs = args.font
         ? args.font
@@ -100,7 +101,13 @@ export default defineCommand({
         : undefined;
 
       const hasCJK = detectCJKInTemplate(template as any) || detectCJKInInputs(inputs);
-      const resolvedFont = await resolveFont(fontArgs, hasCJK, args.noAutoFont, args.verbose);
+      const resolvedFont = await resolveFont({
+        fontArgs,
+        hasCJK,
+        noAutoFont: Boolean(args.noAutoFont),
+        verbose: Boolean(args.verbose),
+        hasExplicitFontConfig: hasExplicitFontEntries(jobOptions.font),
+      });
       const font = mergeFontConfig(jobOptions.font, resolvedFont);
       const generateOptions = { ...jobOptions, font };
 
@@ -234,4 +241,57 @@ function mergeFontConfig(jobFont: unknown, resolvedFont: Font): Font {
     ...(jobFont as Font),
     ...resolvedFont,
   };
+}
+
+function hasExplicitFontEntries(jobFont: unknown): boolean {
+  if (typeof jobFont !== 'object' || jobFont === null || Array.isArray(jobFont)) {
+    return false;
+  }
+
+  return Object.keys(jobFont as Record<string, unknown>).length > 0;
+}
+
+function assertSupportedSchemaTypes(template: Template): void {
+  const unsupported: string[] = [];
+
+  for (const page of normalizeSchemaPages(template.schemas)) {
+    for (const schema of page) {
+      const type = schema.type;
+      if (typeof type === 'string' && !schemaTypes.has(type)) {
+        const name = typeof schema.name === 'string' && schema.name.length > 0 ? schema.name : null;
+        unsupported.push(
+          name ? `Field "${name}" has unknown type "${type}"` : `Unknown schema type "${type}"`,
+        );
+      }
+    }
+  }
+
+  if (unsupported.length > 0) {
+    fail(`Invalid generation input. ${unsupported.join('; ')}`, {
+      code: 'EVALIDATE',
+      exitCode: 1,
+    });
+  }
+}
+
+function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<string, unknown>>> {
+  if (!Array.isArray(rawSchemas)) {
+    return [];
+  }
+
+  return rawSchemas.map((page) => {
+    if (Array.isArray(page)) {
+      return page.filter(
+        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+      );
+    }
+
+    if (typeof page === 'object' && page !== null) {
+      return Object.values(page).filter(
+        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+      );
+    }
+
+    return [];
+  });
 }
