@@ -290,8 +290,14 @@ pdfme doctor job.json --json
 # stdin から診断
 cat job.json | pdfme doctor - --json
 
+# font source 前提だけを診断
+pdfme doctor fonts job.json --json
+
 # generate --noAutoFont 相当の条件で診断
 pdfme doctor job.json --noAutoFont --json
+
+# generate の出力先 / 画像出力先まで事前診断
+pdfme doctor job.json -o artifacts/out.pdf --image --imageFormat jpeg --json
 ```
 
 ### 何を返すか
@@ -305,10 +311,18 @@ pdfme doctor job.json --noAutoFont --json
   - basePdf の種別と local path 解決結果
   - schema types / required official plugins / required fonts
   - CJK 検出時に auto-font が必要か、cache があるか、`--noAutoFont` だと blocking になるか
+  - `generate` 相当の output path safety (`output.pdf` の implicit overwrite guard, writable dir, image output preview)
+- `pdfme doctor fonts <job-or-template>`
+  - `options.font` の source 種別 (`localPath` / `url` / `dataUri` / `inlineBytes`)
+  - local font path の解決結果と存在確認
+  - `.ttf` 以外の unsupported 検出
+  - implicit default font / auto NotoSansJP を含む effective font 前提
+
+runtime/path の事前診断には `generate` と同じく `-o, --output`, `--force`, `--image`, `--imageFormat` を使える。`doctor fonts` ではこれらの flag は font diagnosis の health/payload には反映しないが、argument validation 自体は通常どおり行う。
 
 ### `--json` 契約
 
-`doctor` も `validate` と同様に、コマンド自体が実行できた場合は `ok: true` を返し、blocking issue の有無は `healthy` で表す。
+`doctor` も `validate` と同様に、コマンド自体が実行できた場合は `ok: true` を返し、blocking issue の有無は `healthy` で表す。`target` は `environment` / `input` / `fonts` のいずれかになる。
 
 環境診断の例:
 
@@ -343,10 +357,43 @@ input 診断の例:
   },
   "diagnosis": {
     "basePdf": { "kind": "pdfPath", "exists": false },
-    "fonts": { "missingFonts": ["NotoSerifJP"] }
+    "fonts": { "missingFonts": ["NotoSerifJP"] },
+    "runtime": {
+      "estimatedPages": 1,
+      "output": {
+        "path": "output.pdf",
+        "resolvedPath": "/abs/path/output.pdf",
+        "implicitDefaultProtected": true
+      }
+    }
   },
   "issues": [
-    "Base PDF file not found: /abs/path/missing.pdf"
+    "Base PDF file not found: /abs/path/missing.pdf",
+    "Refusing to overwrite implicit default output file: /abs/path/output.pdf. Use -o to choose an explicit path or --force to overwrite."
+  ],
+  "warnings": []
+}
+```
+
+font 診断の例:
+
+```json
+{
+  "ok": true,
+  "target": "fonts",
+  "healthy": false,
+  "mode": "job",
+  "diagnosis": {
+    "fonts": {
+      "requiredFonts": ["BrandOtf", "BrandTtf"],
+      "explicitSources": [
+        { "fontName": "BrandTtf", "kind": "localPath", "supportedFormat": true },
+        { "fontName": "BrandOtf", "kind": "localPath", "supportedFormat": false }
+      ]
+    }
+  },
+  "issues": [
+    "Font file for BrandOtf uses .otf. @pdfme/cli currently guarantees only .ttf custom fonts for BrandOtf."
   ],
   "warnings": []
 }

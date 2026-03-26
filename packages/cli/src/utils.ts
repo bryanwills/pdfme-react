@@ -1,4 +1,12 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, extname, basename, join, resolve } from 'node:path';
 import { fail, isOptionProvided } from './contract.js';
 
@@ -13,6 +21,18 @@ interface LoadedInput {
   inputs: Record<string, unknown>[];
   options?: unknown;
   templateDir?: string;
+}
+
+export interface WriteTargetInspection {
+  path: string;
+  resolvedPath: string;
+  parentDir: string;
+  exists: boolean;
+  existingType?: 'file' | 'directory' | 'other';
+  writable: boolean;
+  checkedPath?: string;
+  checkedType?: 'file' | 'directory' | 'other';
+  error?: string;
 }
 
 export function readJsonFile(filePath: string): unknown {
@@ -270,16 +290,101 @@ export function ensureSafeDefaultOutputPath(options: {
   defaultValue: string;
   force?: boolean;
 }): void {
+  const issue = getSafeDefaultOutputPathIssue(options);
+  if (issue) {
+    fail(issue, { code: 'EARG', exitCode: 1 });
+  }
+}
+
+export function getSafeDefaultOutputPathIssue(options: {
+  filePath: string;
+  rawArgs: string[];
+  optionName: string;
+  optionAlias?: string | string[];
+  defaultValue: string;
+  force?: boolean;
+}): string | undefined {
   const { filePath, rawArgs, optionName, optionAlias, defaultValue, force = false } = options;
   if (force || isOptionProvided(rawArgs, optionName, optionAlias) || filePath !== defaultValue) {
-    return;
+    return undefined;
   }
 
   const resolvedPath = resolve(filePath);
-  if (existsSync(resolvedPath)) {
-    fail(
-      `Refusing to overwrite implicit default output file: ${resolvedPath}. Use -o to choose an explicit path or --force to overwrite.`,
-      { code: 'EARG', exitCode: 1 },
-    );
+  if (!existsSync(resolvedPath)) {
+    return undefined;
   }
+
+  return `Refusing to overwrite implicit default output file: ${resolvedPath}. Use -o to choose an explicit path or --force to overwrite.`;
+}
+
+export function inspectWriteTarget(filePath: string): WriteTargetInspection {
+  const resolvedPath = resolve(filePath);
+  const parentDir = dirname(resolvedPath);
+  const exists = existsSync(resolvedPath);
+  let existingType: WriteTargetInspection['existingType'];
+
+  if (exists) {
+    const stat = statSync(resolvedPath);
+    if (stat.isFile()) {
+      existingType = 'file';
+    } else if (stat.isDirectory()) {
+      existingType = 'directory';
+    } else {
+      existingType = 'other';
+    }
+  }
+
+  const checkedPath = exists && existingType === 'file' ? resolvedPath : findExistingParent(parentDir);
+  const checkedType = getFsEntryType(checkedPath);
+
+  try {
+    accessSync(checkedPath, constants.W_OK);
+    return {
+      path: filePath,
+      resolvedPath,
+      parentDir,
+      exists,
+      existingType,
+      writable: true,
+      checkedPath: checkedPath !== resolvedPath ? checkedPath : undefined,
+      checkedType,
+    };
+  } catch (error) {
+    return {
+      path: filePath,
+      resolvedPath,
+      parentDir,
+      exists,
+      existingType,
+      writable: false,
+      checkedPath: checkedPath !== resolvedPath ? checkedPath : undefined,
+      checkedType,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function findExistingParent(path: string): string {
+  let current = path;
+
+  while (!existsSync(current)) {
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+
+  return current;
+}
+
+function getFsEntryType(path: string): WriteTargetInspection['checkedType'] {
+  const stat = statSync(path);
+  if (stat.isFile()) {
+    return 'file';
+  }
+  if (stat.isDirectory()) {
+    return 'directory';
+  }
+  return 'other';
 }
