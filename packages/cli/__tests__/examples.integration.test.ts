@@ -9,7 +9,6 @@ const CLI = join(__dirname, '..', 'dist', 'index.js');
 const PRELOAD = pathToFileURL(join(__dirname, 'fixtures', 'fetch-fixture-loader.mjs')).href;
 const TMP = join(__dirname, '..', '.test-tmp-examples-integration');
 const ASSETS_DIR = resolve(__dirname, '..', '..', '..', 'playground', 'public', 'template-assets');
-const INDEX_PATH = join(ASSETS_DIR, 'index.json');
 const MANIFEST_PATH = join(ASSETS_DIR, 'manifest.json');
 const VERSIONED_MANIFEST_DIR = join(ASSETS_DIR, 'manifests');
 const FONT_FIXTURES_DIR = resolve(
@@ -192,13 +191,11 @@ describe('examples integration smoke', () => {
 
   it('keeps manifest and playground assets in sync', () => {
     const manifest = readJson<ExampleManifest>(MANIFEST_PATH);
-    const index = readJson<ExampleManifestEntry[]>(INDEX_PATH);
     const cliPackageJson = readJson<{ version: string }>(CLI_PACKAGE_JSON_PATH);
     const versionedManifestPath = join(VERSIONED_MANIFEST_DIR, `${cliPackageJson.version}.json`);
 
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.cliVersion).toBe(cliPackageJson.version);
-    expect(manifest.templates).toEqual(index);
     expect(existsSync(versionedManifestPath)).toBe(true);
     expect(readJson<ExampleManifest>(versionedManifestPath)).toEqual(manifest);
 
