@@ -216,7 +216,35 @@ pdfme generate job.json -o out.pdf --image --json
 - オフラインで自動取得できず、明示的なフォント指定もない場合は structured error (`EFONT`) を返す
 - `--noAutoFont` で無効化
 - `--noAutoFont` 使用時に CJK が含まれ、明示的なフォント指定がなければ structured error (`EFONT`) を返す
-- カスタムフォントは現時点で `.ttf` のみを強く保証し、`.otf` / `.ttc` は明示的にエラーにする
+
+### Font Source Contract
+
+`@pdfme/cli` は「拡張子そのもの」ではなく、**どこからフォントを解決するか**を基準に contract を持つ。
+
+- `--font name=path.ttf`
+  - local file 専用
+  - path は CLI 実行時の `cwd` 基準で解決
+  - 現時点で強保証するのは `.ttf` のみ
+  - 同名エントリが `options.font` にあっても `--font` を優先する
+- `options.font.<name>.data`
+  - local `.ttf` path
+    - unified job / template JSON のあるディレクトリ基準で解決
+  - public host を向く `https://...` / `http://...` の `.ttf` URL
+  - `.ttf` を表す `data:` URI
+  - `Uint8Array` / `ArrayBuffer`
+    - これは programmatic 入力では有効だが、純粋な JSON job では通常使わない
+- implicit source
+  - 常に default `Roboto`
+  - CJK があり明示 font がなければ auto `NotoSansJP` (cache or download)
+
+unsupported として fail-fast に寄せるもの:
+
+- missing local font path
+- `.otf` / `.ttc` など `.ttf` 以外を明示する source
+- loopback / private host を含む unsafe `http(s)` URL
+- `file:` / `ftp:` など非 `http(s)` URL
+
+`doctor fonts` はこの source contract をそのまま machine-readable に返し、`generate` は local path を事前解決して structured error に寄せる。
 
 ### 終了コード
 
@@ -603,7 +631,7 @@ Vite で `target: node20`, 全依存を external にして単一 `dist/index.js`
 ## 既知の制限事項
 
 - **フォント複数指定**: citty が repeated string args を未サポートのため、カンマ区切り形式 (`--font "A=a.ttf,B=b.ttf"`) を使用
-- **カスタムフォント形式**: 現時点の公式サポートは `.ttf` のみ。`.otf` / `.ttc` は unsupported error を返す
+- **カスタムフォント source contract**: 現時点の強保証は local path / `http(s)` URL / `data:` URI の `.ttf`。`.otf` / `.ttc` は unsupported error を返す
 - **examples コマンド**: current の official manifest / template を network 越しに取得する convenience command。取得先は `PDFME_EXAMPLES_BASE_URL` 環境変数で上書き可能
 - **NotoSansJP の DL URL**: Google Fonts CDN の可変ウェイトフォント (~16MB) を使用。固定ウェイト版への切り替えでサイズ削減可能
 

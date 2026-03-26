@@ -2,7 +2,7 @@ import { accessSync, constants, existsSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { defineCommand } from 'citty';
-import { checkGenerateProps, DEFAULT_FONT_NAME } from '@pdfme/common';
+import { checkGenerateProps, DEFAULT_FONT_NAME, isUrlSafeToFetch } from '@pdfme/common';
 import {
   assertNoUnknownFlags,
   fail,
@@ -883,6 +883,11 @@ function diagnoseUrlFontSource(
   const formatHint = detectPathFormatHint(url.pathname);
   const formatResult = evaluateFontFormat(fontName, formatHint, `Font URL for ${fontName}`);
 
+  if (!isUrlSafeToFetch(url.toString())) {
+    issues.push(
+      `Font URL for ${fontName} is invalid or unsafe. Only http: and https: URLs pointing to public hosts are allowed.`,
+    );
+  }
   if (formatResult.issue) {
     issues.push(formatResult.issue);
   }

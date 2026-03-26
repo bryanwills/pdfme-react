@@ -18,7 +18,7 @@ import {
   resolveBasePdf,
   writeOutput,
 } from '../utils.js';
-import { resolveFont } from '../fonts.js';
+import { normalizeExplicitFontOption, resolveFont } from '../fonts.js';
 import { detectCJKInTemplate, detectCJKInInputs } from '../cjk-detect.js';
 import { drawGridOnImage } from '../grid.js';
 import { schemaPlugins, schemaTypes } from '../schema-plugins.js';
@@ -108,7 +108,8 @@ export default defineCommand({
         verbose: Boolean(args.verbose),
         hasExplicitFontConfig: hasExplicitFontEntries(jobOptions.font),
       });
-      const font = mergeFontConfig(jobOptions.font, resolvedFont);
+      const mergedFontConfig = mergeFontConfig(jobOptions.font, resolvedFont);
+      const font = normalizeExplicitFontOption(mergedFontConfig, templateDir) ?? resolvedFont;
       const generateOptions = { ...jobOptions, font };
 
       try {

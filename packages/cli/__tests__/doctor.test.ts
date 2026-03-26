@@ -137,7 +137,124 @@ describe('doctor command', () => {
     expect(parsed.validation.valid).toBe(true);
     expect(parsed.diagnosis.fonts.explicitFonts).toEqual(['NotoSerifJP']);
     expect(parsed.diagnosis.fonts.effectiveFonts).toEqual(['NotoSerifJP', 'Roboto']);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'NotoSerifJP',
+          kind: 'url',
+          supportedFormat: true,
+          needsNetwork: true,
+        }),
+      ]),
+    );
     expect(parsed.issues).toEqual([]);
+  });
+
+  it('classifies data URI font sources without treating them as runtime issues', () => {
+    const workDir = join(TMP, 'doctor-font-data-uri');
+    const file = join(workDir, 'job.json');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'BrandTtf',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            BrandTtf: {
+              data: 'data:font/ttf;base64,AAEAAA==',
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['doctor', 'fonts', file, '--json']);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('fonts');
+    expect(parsed.healthy).toBe(true);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'BrandTtf',
+          kind: 'dataUri',
+          supportedFormat: true,
+          needsNetwork: false,
+          mediaType: 'font/ttf',
+        }),
+      ]),
+    );
+  });
+
+  it('treats unsafe font URLs as blocking issues', () => {
+    const workDir = join(TMP, 'doctor-font-unsafe-url');
+    const file = join(workDir, 'job.json');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'UnsafeFont',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            UnsafeFont: {
+              data: 'http://127.0.0.1/font.ttf',
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(['doctor', 'fonts', file, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('fonts');
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.diagnosis.fonts.explicitSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontName: 'UnsafeFont',
+          kind: 'url',
+          supportedFormat: true,
+          needsNetwork: true,
+          url: 'http://127.0.0.1/font.ttf',
+        }),
+      ]),
+    );
+    expect(parsed.issues).toContain(
+      'Font URL for UnsafeFont is invalid or unsafe. Only http: and https: URLs pointing to public hosts are allowed.',
+    );
   });
 
   it('fails when CJK auto-font needs a non-writable empty cache', () => {
