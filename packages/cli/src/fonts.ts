@@ -8,7 +8,7 @@ import { fail } from './contract.js';
 const CACHE_DIR = join(homedir(), '.pdfme', 'fonts');
 const NOTO_SANS_JP_URL =
   'https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf';
-const NOTO_CACHE_FILE = join(CACHE_DIR, 'NotoSansJP-Regular.ttf');
+export const NOTO_CACHE_FILE = join(CACHE_DIR, 'NotoSansJP-Regular.ttf');
 
 interface ResolveFontOptions {
   fontArgs?: string[];

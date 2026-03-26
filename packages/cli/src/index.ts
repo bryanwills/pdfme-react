@@ -4,6 +4,7 @@ import validateCmd from './commands/validate.js';
 import pdf2imgCmd from './commands/pdf2img.js';
 import pdf2sizeCmd from './commands/pdf2size.js';
 import examplesCmd from './commands/examples.js';
+import doctorCmd from './commands/doctor.js';
 import { CLI_VERSION } from './version.js';
 
 const main = defineCommand({
@@ -18,6 +19,7 @@ const main = defineCommand({
     pdf2img: pdf2imgCmd,
     pdf2size: pdf2sizeCmd,
     examples: examplesCmd,
+    doctor: doctorCmd,
   },
 });
 

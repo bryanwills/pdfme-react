@@ -69,6 +69,7 @@ node packages/cli/dist/index.js --help
 |---------|------|
 | [`generate`](#pdfme-generate) | テンプレート + 入力データ → PDF + 画像 |
 | [`validate`](#pdfme-validate) | テンプレート JSON の構造検証 |
+| [`doctor`](#pdfme-doctor) | 実行環境 / job / template の事前診断 |
 | [`pdf2img`](#pdfme-pdf2img) | 既存 PDF → 画像変換 (グリッド付き) |
 | [`pdf2size`](#pdfme-pdf2size) | PDF のページサイズ取得 |
 | [`examples`](#pdfme-examples) | 組み込みテンプレート資産の参照・出力 |
@@ -270,6 +271,88 @@ pdfme validate template.json --strict
 ```
 ✗ Error: Field "title" has unknown type "textbox". Did you mean: text? Available types: text, image, ...
 ```
+
+---
+
+## pdfme doctor
+
+`generate` 実行前に、CLI 実行環境や local job/template の準備状態を診断する。`validate` が JSON 構造中心なのに対し、`doctor` は basePdf path、font 前提、cache 状態も含めて見る。
+
+### 使い方
+
+```bash
+# 実行環境の自己診断
+pdfme doctor
+
+# local job / template の診断
+pdfme doctor job.json --json
+
+# stdin から診断
+cat job.json | pdfme doctor - --json
+
+# generate --noAutoFont 相当の条件で診断
+pdfme doctor job.json --noAutoFont --json
+```
+
+### 何を返すか
+
+- `pdfme doctor`
+  - Node version / CLI version / platform / arch
+  - `cwd` と temp dir の writable 状態
+  - NotoSansJP cache file の存在と cache dir の writable 状態
+- `pdfme doctor <job-or-template>`
+  - `validate` 相当の pages / fields / errors / warnings
+  - basePdf の種別と local path 解決結果
+  - schema types / required official plugins / required fonts
+  - CJK 検出時に auto-font が必要か、cache があるか、`--noAutoFont` だと blocking になるか
+
+### `--json` 契約
+
+`doctor` も `validate` と同様に、コマンド自体が実行できた場合は `ok: true` を返し、blocking issue の有無は `healthy` で表す。
+
+環境診断の例:
+
+```json
+{
+  "ok": true,
+  "target": "environment",
+  "healthy": true,
+  "environment": {
+    "nodeVersion": "v20.19.3",
+    "cliVersion": "0.1.0-alpha.0"
+  },
+  "issues": [],
+  "warnings": []
+}
+```
+
+input 診断の例:
+
+```json
+{
+  "ok": true,
+  "target": "input",
+  "healthy": false,
+  "mode": "template",
+  "validation": {
+    "valid": true,
+    "pages": 1,
+    "fields": 1,
+    "errors": [],
+    "warnings": []
+  },
+  "diagnosis": {
+    "basePdf": { "kind": "pdfPath", "exists": false },
+    "fonts": { "missingFonts": ["NotoSerifJP"] }
+  },
+  "issues": [
+    "Base PDF file not found: /abs/path/missing.pdf"
+  ],
+  "warnings": []
+}
+```
+
+blocking issue があれば exit code 1、argument / parse / file I/O 自体に失敗した場合は他 command と同様に structured error (`ok: false`) を返す。
 
 ---
 
