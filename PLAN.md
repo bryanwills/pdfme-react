@@ -4,7 +4,7 @@ Last updated: 2026-03-27 JST
 
 Latest committed checkpoint:
 
-- `10248fa7` `fix(cli): update PLAN.md with latest checkpoint and phase 2B details`
+- `0fbca8a8` `fix(cli): harden remote font resolution safety`
 
 ## Context
 
