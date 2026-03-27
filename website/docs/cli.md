@@ -29,11 +29,14 @@ npx @pdfme/cli generate --help
   - generate a PDF from a template + inputs or a unified job file
   - optionally render page images with `--image`
   - optionally overlay a grid and schema bounds with `--grid`
+  - use `--verbose` to print input/output/render settings to stderr without polluting JSON stdout
 - `pdfme validate`
   - validate a template or unified job before generation
   - use `--json` for machine-readable inspection output
+  - use `--verbose` to print source/mode/count summaries to stderr
 - `pdfme doctor`
   - diagnose runtime, font, `basePdf`, cache, and output-path issues before generation
+  - use `--verbose` to print target/input/runtime summaries to stderr
 - `pdfme pdf2img`
   - convert an existing PDF into page images
   - use `--verbose` to print source/output/render settings to stderr without polluting JSON stdout
@@ -42,6 +45,7 @@ npx @pdfme/cli generate --help
   - use `--verbose` to print source/total-page information to stderr
 - `pdfme examples`
   - export official example assets, optionally as a unified job with sample inputs
+  - use `--verbose` to print manifest/template source and output destination to stderr
 
 ## Typical Workflow
 
@@ -73,6 +77,7 @@ In this flow, your template uses the existing PDF as `basePdf`, and pdfme render
 When you pass `--json`:
 
 - stdout is JSON only
+- `--verbose` writes supplementary context to stderr
 - failures return `ok: false` with a structured error
 - `doctor` returns `ok: true` when the command ran successfully, and uses `healthy` to report whether blocking issues were found
 - `validate --json` and `doctor --json` return field-level `inputHints`, so automation can tell whether a field expects a plain string or a JSON string object

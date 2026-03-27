@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -100,6 +100,46 @@ describe('generate command', () => {
     const parsed = JSON.parse(result.stdout);
     expect(parsed.pdf).toBe(outputPath);
     expect(parsed.pages).toBe(1);
+  });
+
+  it('supports verbose output without polluting JSON stdout', () => {
+    const workDir = join(TMP, 'verbose-json');
+    mkdirSync(workDir, { recursive: true });
+
+    const jobPath = join(workDir, 'job.json');
+    const outputPath = join(workDir, 'out.pdf');
+    writeFileSync(
+      jobPath,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+      }),
+    );
+
+    const result = spawnSync('node', [CLI, 'generate', jobPath, '-o', outputPath, '-v', '--json'], {
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.pdf).toBe(outputPath);
+    expect(result.stderr).toContain(`Input: ${jobPath}`);
+    expect(result.stderr).toContain('Mode: job');
+    expect(result.stderr).toContain(`Output PDF: ${outputPath}`);
+    expect(result.stderr).toContain('Image output: disabled');
   });
 
   it('fails with a validation error instead of crashing on invalid input', () => {

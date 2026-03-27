@@ -126,9 +126,22 @@ export default defineCommand({
       validateInputContracts(template as unknown as Record<string, unknown>, inputs);
 
       if (args.verbose) {
-        console.error(`Template: ${template.schemas?.length ?? 0} page(s)`);
+        console.error(`Input: ${describeGenerateInput(args.file, args.template, args.inputs)}`);
+        console.error(`Mode: ${args.file ? 'job' : 'template+inputs'}`);
+        console.error(`Template pages: ${template.schemas?.length ?? 0}`);
         console.error(`Inputs: ${inputs.length} set(s)`);
+        console.error(`Output PDF: ${args.output}`);
+        console.error(
+          `Image output: ${
+            args.image || args.grid
+              ? `enabled (${imageFormat}, scale=${scale}, grid=${args.grid ? `${gridSize}mm` : 'disabled'})`
+              : 'disabled'
+          }`,
+        );
         console.error(`Fonts: ${Object.keys(font).join(', ')}`);
+        if (args.basePdf) {
+          console.error(`Base PDF override: ${args.basePdf}`);
+        }
       }
 
       const pdf = await generate({
@@ -276,6 +289,22 @@ function assertSupportedSchemaTypes(template: Template): void {
       exitCode: 1,
     });
   }
+}
+
+function describeGenerateInput(
+  file: string | undefined,
+  template: string | undefined,
+  inputs: string | undefined,
+): string {
+  if (file) {
+    return file;
+  }
+
+  if (template || inputs) {
+    return `${template ?? '(missing template)'} + ${inputs ?? '(missing inputs)'}`;
+  }
+
+  return '(unknown)';
 }
 
 function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<string, unknown>>> {

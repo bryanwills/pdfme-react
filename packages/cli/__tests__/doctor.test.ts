@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { writeFileSync, mkdirSync, rmSync, chmodSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +51,39 @@ describe('doctor command', () => {
     expect(parsed.environment.cwd.path).toBeTruthy();
     expect(Array.isArray(parsed.issues)).toBe(true);
     expect(Array.isArray(parsed.warnings)).toBe(true);
+  });
+
+  it('supports verbose output without polluting JSON stdout', () => {
+    const file = join(TMP, 'doctor-verbose.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+        schemas: [[
+          {
+            name: 'title',
+            type: 'text',
+            position: { x: 20, y: 20 },
+            width: 170,
+            height: 15,
+          },
+        ]],
+      }),
+    );
+
+    const result = spawnSync('node', [CLI, 'doctor', file, '-v', '--json'], {
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.target).toBe('input');
+    expect(result.stderr).toContain('Target: input');
+    expect(result.stderr).toContain(`Input: ${file}`);
+    expect(result.stderr).toContain('Mode: template');
+    expect(result.stderr).toContain('Pages: 1');
   });
 
   it('rejects invalid imageFormat even for environment-only doctor runs', () => {

@@ -23,6 +23,7 @@ const examplesArgs = {
     description: 'Output unified format with sample inputs',
     default: false,
   },
+  verbose: { type: 'boolean' as const, alias: 'v', description: 'Verbose output', default: false },
   json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
 };
 
@@ -88,6 +89,15 @@ export default defineCommand({
         .filter((name): name is string => typeof name === 'string' && name.length > 0)
         .sort();
 
+      if (args.verbose) {
+        console.error(`Base URL: ${getExamplesBaseUrl()}`);
+        console.error(`Manifest source: ${manifestResult.source}`);
+        if (manifestResult.url) {
+          console.error(`Manifest URL: ${manifestResult.url}`);
+        }
+        console.error(`Templates: ${templateNames.length}`);
+      }
+
       if (args.list || !args.name) {
         if (args.json) {
           printJson({
@@ -130,6 +140,16 @@ export default defineCommand({
       }
 
       const output = args.withInputs ? buildExampleJob(templateResult.template) : templateResult.template;
+
+      if (args.verbose) {
+        console.error(`Template: ${args.name}`);
+        console.error(`Template source: ${templateResult.source}`);
+        if (templateResult.url) {
+          console.error(`Template URL: ${templateResult.url}`);
+        }
+        console.error(`Mode: ${args.withInputs ? 'job' : 'template'}`);
+        console.error(`Output: ${args.output ?? 'stdout'}`);
+      }
 
       if (args.output) {
         writeOutput(args.output, new TextEncoder().encode(JSON.stringify(output, null, 2)));

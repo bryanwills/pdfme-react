@@ -45,6 +45,7 @@ const doctorArgs = {
     description: 'Job/template JSON file for "doctor fonts", or "-" for stdin',
     required: false,
   },
+  verbose: { type: 'boolean' as const, alias: 'v', description: 'Verbose output', default: false },
   json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
   noAutoFont: {
     type: 'boolean' as const,
@@ -217,6 +218,10 @@ export default defineCommand({
         const warnings = collectEnvironmentWarnings(environment);
         const healthy = issues.length === 0;
 
+        if (args.verbose) {
+          printDoctorEnvironmentVerbose(environment, healthy, issues, warnings);
+        }
+
         if (args.json) {
           printJson({
             ok: true,
@@ -254,6 +259,10 @@ export default defineCommand({
           rawArgs,
         },
       });
+
+      if (args.verbose) {
+        printDoctorInputVerbose(invocation, source, diagnosis);
+      }
 
       const payload =
         invocation.target === 'fonts'
@@ -785,6 +794,26 @@ function printEnvironmentReport(
   }
 }
 
+function printDoctorEnvironmentVerbose(
+  environment: EnvironmentReport,
+  healthy: boolean,
+  issues: string[],
+  warnings: string[],
+): void {
+  console.error('Target: environment');
+  console.error(`Healthy: ${healthy ? 'yes' : 'no'}`);
+  console.error(`Node: ${environment.nodeVersion}`);
+  console.error(`CLI: ${environment.cliVersion}`);
+  console.error(`Platform: ${environment.platform} ${environment.arch}`);
+  console.error(`cwd: ${environment.cwd.path}`);
+  console.error(`temp: ${environment.tempDir.path}`);
+  console.error(
+    `Font cache: ${environment.fontCache.cached ? 'cached' : 'not cached'} (${environment.fontCache.file})`,
+  );
+  console.error(`Issues: ${issues.length}`);
+  console.error(`Warnings: ${warnings.length}`);
+}
+
 function printInputReport(payload: Record<string, unknown>): void {
   const healthy = Boolean(payload.healthy);
   const validation = payload.validation as {
@@ -825,6 +854,35 @@ function printInputReport(payload: Record<string, unknown>): void {
   }
 }
 
+function printDoctorInputVerbose(
+  invocation: DoctorInvocation,
+  source: Awaited<ReturnType<typeof loadValidationSource>>,
+  diagnosis: InputDiagnosis,
+): void {
+  console.error(`Target: ${invocation.target}`);
+  console.error(`Input: ${describeDoctorInput(invocation.file)}`);
+  console.error(`Mode: ${source.mode}`);
+  console.error(`Pages: ${diagnosis.validation.pages}`);
+  console.error(`Fields: ${diagnosis.validation.fields}`);
+  if (source.mode === 'job') {
+    console.error(`Inputs: ${source.inputs?.length ?? 0} set(s)`);
+  }
+  if (invocation.target === 'input') {
+    console.error(`Estimated pages: ${diagnosis.runtimeDiagnosis.estimatedPages}`);
+    console.error(`Output PDF: ${diagnosis.runtimeDiagnosis.output.path}`);
+    console.error(
+      `Image output: ${
+        diagnosis.runtimeDiagnosis.imageOutputs.enabled
+          ? `enabled (${diagnosis.runtimeDiagnosis.imageOutputs.format}, ${diagnosis.runtimeDiagnosis.imageOutputs.paths.length} file(s))`
+          : 'disabled'
+      }`,
+    );
+  }
+  console.error(`Healthy: ${diagnosis.healthy ? 'yes' : 'no'}`);
+  console.error(`Issues: ${diagnosis.issues.length}`);
+  console.error(`Warnings: ${diagnosis.warnings.length}`);
+}
+
 function printFontReport(payload: Record<string, unknown>): void {
   const healthy = Boolean(payload.healthy);
   const diagnosis = payload.diagnosis as {
@@ -862,4 +920,12 @@ function printFontReport(payload: Record<string, unknown>): void {
   for (const warning of warnings) {
     console.log(`\u26a0 Warning: ${warning}`);
   }
+}
+
+function describeDoctorInput(file: string | undefined): string {
+  if (!file || file === '-') {
+    return 'stdin';
+  }
+
+  return file;
 }

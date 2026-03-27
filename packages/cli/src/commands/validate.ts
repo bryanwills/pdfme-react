@@ -17,6 +17,7 @@ const validateArgs = {
     description: 'Template JSON file, unified job file, or "-" for stdin',
     required: false,
   },
+  verbose: { type: 'boolean' as const, alias: 'v', description: 'Verbose output', default: false },
   json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
   strict: { type: 'boolean' as const, description: 'Treat warnings as errors', default: false },
 };
@@ -70,6 +71,19 @@ export default defineCommand({
 
       const valid = result.errors.length === 0 && (!args.strict || result.warnings.length === 0);
 
+      if (args.verbose) {
+        console.error(`Input: ${describeValidationInput(args.file)}`);
+        console.error(`Mode: ${source.mode}`);
+        console.error(`Pages: ${result.pages}`);
+        console.error(`Fields: ${result.fields}`);
+        if (source.mode === 'job') {
+          console.error(`Inputs: ${source.inputs?.length ?? 0} set(s)`);
+        }
+        console.error(`Strict: ${args.strict ? 'enabled' : 'disabled'}`);
+        console.error(`Errors: ${result.errors.length}`);
+        console.error(`Warnings: ${result.warnings.length}`);
+      }
+
       if (args.json) {
         printJson({
           ok: true,
@@ -102,3 +116,11 @@ export default defineCommand({
     });
   },
 });
+
+function describeValidationInput(file: string | undefined): string {
+  if (!file || file === '-') {
+    return 'stdin';
+  }
+
+  return file;
+}

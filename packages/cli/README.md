@@ -116,6 +116,8 @@ pdfme generate job.json -o out.pdf --image --json
 | `-v, --verbose` | boolean | false | 詳細出力 |
 | `--json` | boolean | false | 構造化 JSON 出力 |
 
+`-v, --verbose` を付けると、入力 source、mode、template pages、input 数、output PDF、image 条件、font 前提、`--basePdf` override を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
+
 ### `--json` 契約
 
 `--json` を指定すると、成功時も失敗時も stdout には JSON のみを出力する。人間向けの補足や warning は stderr に寄せる。
@@ -319,6 +321,9 @@ pdfme validate template.json --json
 
 # Warning もエラー扱いにする
 pdfme validate template.json --strict
+
+# 詳細出力を stderr に出す
+pdfme validate template.json -v --json
 ```
 
 ### 検証項目
@@ -335,6 +340,7 @@ pdfme validate template.json --strict
 | top-level | 未知の top-level field | WARNING |
 
 `validate` は template 単体だけでなく unified job (`{ template, inputs, options? }`) も受理する。`--strict` を付けると warning も exit code 1 に昇格する。
+`-v, --verbose` を付けると、入力 source、mode、pages / fields、job 時の input 数、strict 条件、error / warning 件数を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
 `--json` では `inputHints` も返す。これにより field ごとの期待入力形式を事前に把握できる。たとえば `text` は plain string、`multiVariableText` は JSON string object を期待する。
 
@@ -393,6 +399,9 @@ pdfme doctor job.json --noAutoFont --json
 
 # generate の出力先 / 画像出力先まで事前診断
 pdfme doctor job.json -o artifacts/out.pdf --image --imageFormat jpeg --json
+
+# 詳細出力を stderr に出す
+pdfme doctor job.json -v --json
 ```
 
 ### 何を返すか
@@ -415,6 +424,7 @@ pdfme doctor job.json -o artifacts/out.pdf --image --imageFormat jpeg --json
   - implicit default font / auto NotoSansJP を含む effective font 前提
 
 runtime/path の事前診断には `generate` と同じく `-o, --output`, `--force`, `--image`, `--imageFormat` を使える。`doctor fonts` ではこれらの flag は font diagnosis の health/payload には反映しないが、argument validation 自体は通常どおり行う。
+`-v, --verbose` を付けると、target、入力 source、mode、pages / fields、job 時の input 数、estimated pages、output PDF、image 条件、issue / warning 件数を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
 ### `--json` 契約
 
@@ -611,6 +621,9 @@ pdfme examples invoice --withInputs -o job.json
 # 構造化 JSON で metadata も取得
 pdfme examples --list --json
 
+# source と output 条件を stderr に出す
+pdfme examples invoice --withInputs -o job.json -v --json
+
 # そのまま generate に渡せる
 pdfme examples invoice --withInputs -o job.json && pdfme generate job.json --image
 ```
@@ -622,6 +635,7 @@ pdfme examples invoice --withInputs -o job.json && pdfme generate job.json --ima
 利用可能なテンプレートは `pdfme examples --list` で取得。
 
 `--json` を付けると manifest metadata も返す。manifest には `path`, `thumbnailPath`, `pageCount`, `fieldCount`, `schemaTypes`, `fontNames`, `hasCJK`, `basePdfKind` などが含まれ、AI/agent が examples を探索しやすい形になっている。
+`-v, --verbose` を付けると、base URL、manifest source / URL、template source / URL、mode、output 先を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
 ---
 
@@ -756,7 +770,7 @@ Vite で `target: node20`, 全依存を external にして単一 `dist/index.js`
 
 ## 次の検討トラック
 
-- command 間 UX parity の見直し: `pdf2img` / `pdf2size` の flag 一貫性や `--verbose` parity の再評価
+- command 間 UX parity の見直し: `--verbose` second pass は `generate` / `validate` / `doctor` / `examples` まで拡張済み。次は verbose 以外の flag / payload / human-readable surface を見直す
 - input discoverability の改善: `multiVariableText` の期待入力形式を `doctor` / `validate --json` から見つけやすくする
 - docs / examples polish: `basePdf` overlay workflow と agent 向け onboarding の discoverability を上げる
 - Separate track: Rich Text / Markdown Authoring。CLI hardening とは別に spec から進め、Markdown/Rich Text で本文 PDF を作ってから pdfme template overlay を後段で重ねる workflow を主ユースケースに置く

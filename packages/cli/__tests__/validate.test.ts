@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -149,6 +149,31 @@ describe('validate command', () => {
         paperSize: 'A4 portrait',
       },
     });
+  });
+
+  it('supports verbose output without polluting JSON stdout', () => {
+    const template = {
+      basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+      schemas: [[
+        { name: 'title', type: 'text', position: { x: 20, y: 20 }, width: 170, height: 15 },
+      ]],
+    };
+    const file = join(TMP, 'verbose-json.json');
+    writeFileSync(file, JSON.stringify(template));
+
+    const result = spawnSync('node', [CLI, 'validate', file, '-v', '--json'], {
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(true);
+    expect(result.stderr).toContain(`Input: ${file}`);
+    expect(result.stderr).toContain('Mode: template');
+    expect(result.stderr).toContain('Pages: 1');
+    expect(result.stderr).toContain('Warnings: 0');
   });
 
   it('accepts unified job files', () => {

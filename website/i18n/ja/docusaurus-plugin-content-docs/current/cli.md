@@ -29,11 +29,14 @@ npx @pdfme/cli generate --help
   - template + inputs または unified job から PDF を生成する
   - `--image` でページ画像も出力できる
   - `--grid` でグリッドと schema 境界を画像に重ねられる
+  - `--verbose` で input/output/render 条件を stderr に出せる。`--json` の stdout は汚さない
 - `pdfme validate`
   - generate 前に template または unified job を検証する
   - machine-readable な inspection には `--json` を使う
+  - `--verbose` で source / mode / 件数サマリを stderr に出せる
 - `pdfme doctor`
   - generate 前に runtime, font, `basePdf`, cache, output path の問題を診断する
+  - `--verbose` で target / input / runtime のサマリを stderr に出せる
 - `pdfme pdf2img`
   - 既存 PDF をページ画像に変換する
   - `--verbose` で source/output/render 条件を stderr に出せる。`--json` の stdout は汚さない
@@ -42,6 +45,7 @@ npx @pdfme/cli generate --help
   - `--verbose` で source と総ページ数を stderr に出せる
 - `pdfme examples`
   - official examples を参照し、必要なら sample input 付き unified job として出力する
+  - `--verbose` で manifest / template source と output 先を stderr に出せる
 
 ## 典型的な workflow
 
@@ -73,6 +77,7 @@ pdfme generate -t template.json -i inputs.json -o out.pdf --image --grid
 `--json` を付けると:
 
 - stdout は JSON のみになる
+- `--verbose` の補足情報は stderr に出る
 - failure は `ok: false` の structured error を返す
 - `doctor` は command 自体が動けば `ok: true` を返し、blocking issue の有無は `healthy` で表す
 - `validate --json` / `doctor --json` は field-level の `inputHints` も返すため、plain string を期待する field と JSON string object を期待する field を事前判定できる

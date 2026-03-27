@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -222,6 +222,31 @@ describe('examples integration smoke', () => {
     expect(payload.source).toBe('remote');
     expect(payload.baseUrl).toBe('https://fixtures.example.com/template-assets');
     expect(payload.manifest).toEqual(readJson<ExampleManifest>(MANIFEST_PATH));
+  });
+
+  it('supports verbose output without polluting JSON stdout', () => {
+    mkdirSync(TMP, { recursive: true });
+    const env = createFixtureEnv(TMP);
+    const jobPath = join(TMP, 'invoice-verbose.job.json');
+
+    const result = spawnSync(
+      'node',
+      ['--import', PRELOAD, CLI, 'examples', 'invoice', '--withInputs', '-o', jobPath, '-v', '--json'],
+      {
+        encoding: 'utf8',
+        timeout: 60000,
+        env,
+      },
+    );
+
+    expect(result.status).toBe(0);
+    const payload = JSON.parse(result.stdout);
+    expect(payload.ok).toBe(true);
+    expect(payload.outputPath).toBe(jobPath);
+    expect(result.stderr).toContain('Base URL: https://fixtures.example.com/template-assets');
+    expect(result.stderr).toContain('Manifest source: remote');
+    expect(result.stderr).toContain('Template: invoice');
+    expect(result.stderr).toContain(`Output: ${jobPath}`);
   });
 
   it(

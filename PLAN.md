@@ -4,7 +4,7 @@ Last updated: 2026-03-27 JST
 
 Latest committed checkpoint:
 
-- `c63f1be6` `docs(plan): note workflow and cli UX feedback`
+- `67d3ee94` `feat(cli): add verbose parity and input hints`
 
 ## Context
 
@@ -20,7 +20,7 @@ pdfme 開発で解消したいボトルネックは次の 2 点。
 | Phase 0 | 完了 | 互換性方針と migration 方針を確定 |
 | Phase 1 | 完了 | build / test / lint / typecheck 基盤の移行完了 |
 | Phase 2A | 完了 | `@pdfme/cli` の contract hardening を完了 |
-| Phase 2B | 進行中 | `doctor` の first pass、scope judgment、remote font の network-failure contract 固定は完了。残りは closeout 条件と docs/spec の反映 |
+| Phase 2B | 完了 | `doctor` / remote font contract / docs-spec closeout を完了。次は post-closeout UX parity と discoverability polish |
 | Rich Text / Markdown Track | 未着手 | CLI hardening とは別トラックで検討 |
 
 ## Completed
@@ -325,12 +325,13 @@ Status:
 - `generate --json` が explicit remote font の network failure / HTTP failure を `EFONT` + structured details で返すことを固定
 - explicit remote font は CLI 側で事前解決し、timeout / size safety limit を掛けてから generator に渡す
 - `pdf2img` / `pdf2size` に `--verbose` parity を追加し、`--json` 時の stdout 純度を崩さずに stderr へ補足情報を出す contract を固定
+- `generate` / `validate` / `doctor` / `examples` にも `--verbose` parity を広げ、source / mode / output summary を stderr に出しつつ `--json` stdout purity を test で固定
 - `multiVariableText` について、`validate --json` / `doctor --json` が field-level input hint (`expectedInput.kind`, `variableNames`, `example`) を返し、unified job の plain string input を invalid / unhealthy として報告し、`generate --json` は同条件を `EVALIDATE` + guidance 付きで fail-fast するよう固定
 
 ### Recommended Order
 
 1. post-closeout の command UX parity を詰める
-   - `pdf2img` / `pdf2size` 以外も含めて、verbose surface、JSON payload、human-readable 出力の揃え方を見直す
+   - `--verbose` second pass は実装済みなので、次は JSON payload と human-readable 出力の揃え方を見直す
    - cross-command で `--json` stdout purity を崩さない方針を維持する
 2. special input discoverability の次 slice を判断する
    - `multiVariableText` first pass の hint surface を維持する
@@ -339,7 +340,7 @@ Status:
 ### Post-Closeout Polish Queue
 
 - 実利用フィードバックでは、alpha 表記に対して core workflow は実用水準にあることを確認済み
-- command 間の `--verbose` parity first pass は `pdf2img` / `pdf2size` で実装済み
+- command 間の `--verbose` parity second pass は `generate` / `validate` / `doctor` / `examples` まで実装済み
 - 次の command 間 UX parity 候補は、verbose 以外の flag / JSON payload / human-readable 出力の揃え方を見直すこと
 - `examples --withInputs` / `generate --image --grid` / `doctor` の強みは README / docs / release note で前面に出す
 - 実利用で確認できた「23 templates green / CJK auto-font / unified job / image+grid / doctor」の要約を user-facing messaging に落とす
