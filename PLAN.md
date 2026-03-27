@@ -4,481 +4,104 @@ Last updated: 2026-03-27 JST
 
 Latest committed checkpoint:
 
-- `67d3ee94` `feat(cli): add verbose parity and input hints`
+- `8ffc8c9d` `feat(cli): extend verbose parity across commands`
 
-## Context
+## Purpose
 
-pdfme 開発で解消したいボトルネックは次の 2 点。
+この文書は roadmap / product decision / 未完了事項だけを残す。
 
-1. build / test / lint が重く、変更反映が遅い
-2. agent が PDF 出力を自律検証しづらい
+次のものはここに再掲しない:
 
-## Snapshot
+- 現行実装を読めば分かること
+- `packages/cli/README.md` を読めば分かること
+- 完了済み checklist や implementation log
 
-| 項目 | 状態 | 要約 |
+## Current Focus
+
+pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の post-closeout polish。
+
+主眼:
+
+1. agent / CI / human が同じ surface を扱いやすいこと
+2. command 間の UX 差を減らすこと
+3. docs / onboarding を実利用に寄せること
+
+## Current State
+
+| 項目 | 状態 | メモ |
 |------|------|------|
-| Phase 0 | 完了 | 互換性方針と migration 方針を確定 |
-| Phase 1 | 完了 | build / test / lint / typecheck 基盤の移行完了 |
-| Phase 2A | 完了 | `@pdfme/cli` の contract hardening を完了 |
-| Phase 2B | 完了 | `doctor` / remote font contract / docs-spec closeout を完了。次は post-closeout UX parity と discoverability polish |
-| Rich Text / Markdown Track | 未着手 | CLI hardening とは別トラックで検討 |
+| Build / Test / Typecheck 基盤 | 安定 | v5 開発の前提として維持 |
+| CLI hardening | 完了 | contract-grade machine interface 化は完了 |
+| Operational UX closeout | 完了 | `doctor` を含む closeout は完了 |
+| Post-closeout polish | 進行中 | parity / discoverability / docs を詰める段階 |
+| Rich Text / Markdown Track | 未着手 | CLI polish と分けて扱う |
 
-## Completed
+## Stable Product Decisions
 
-### Phase 0
+- `@pdfme/cli` は command expansion より machine interface quality を優先する
+- CLI は公式 plugin 前提で進める
+- `examples` は convenience command として扱い、core workflow と分ける
+- 新しい surface を入れるなら、実装前に spec を先に書く
+- Rich Text / Markdown Authoring は CLI hardening とは別トラックとして扱う
 
-- breaking changes 方針を確定
-- migration guide / README / 関連 docs を更新
-- playground / Node playground の ESM 移行ブロッカーを解消
+## Active Work
 
-確定済みの breaking changes:
+### 1. Cross-Command UX Parity
 
-| 項目 | 方針 |
-|------|------|
-| モジュール形式 | ESM-only |
-| Node | 20+ |
-| React | UI package は 18+ |
-| import | `dist/*` 直参照は廃止し package exports に統一 |
+次の重点は verbose 以外の parity。
 
-### Phase 1
+- JSON payload の naming / shape をどこまで揃えるか決める
+- human-readable 出力の summary 粒度と help text を揃える
+- command ごとの差を「意図した違い」に絞る
 
-- root の build / test / lint / fmt / typecheck の front door を整理
-- 全 package の Jest -> Vitest 移行を完了
-- 全 package の build を Vite ベースへ移行
-- package exports / internal path / CI を ESM-only 方針に合わせて整理
-- playground を package root exports 前提に寄せた
-- `vp` を task runner / lint / fmt の front door として採用
+### 2. Input Discoverability
 
-現在の基盤:
+`multiVariableText` の first pass の次を判断する。
 
-| 項目 | 現在の方針 |
-|------|-----------|
-| build | package-local の Vite library mode |
-| test | Vitest |
-| lint / format | `vp lint` / `vp fmt` |
-| typecheck | `tsc -b` |
-| modules | ESM-only を前提に整理 |
+- `inputHints` を他の特殊入力型まで広げるか決める
+- 広げるなら、型ごとの input contract を先に整理する
+- generic すぎる hint で誤解を増やさない
 
-補足:
+### 3. Docs / Onboarding Polish
 
-- `vp lint` の type-aware lint は現行 tsconfig と相性課題があるため、型検証 gate は引き続き `tsc -b`
+- `examples --withInputs` / `doctor` / `generate --image --grid` の流れを前面に出す
+- `basePdf` overlay workflow の実務価値をもっと見せる
+- agent 向け onboarding を短く強くする
 
-## Phase 2: `@pdfme/cli` を contract-grade machine interface にする
+## Open Questions
 
-Status: Phase 2A 完了 / Phase 2B 進行中
+- cross-command JSON payload はどこまで統一するべきか
+- `inputHints` を広げる対象はどこまでにするか
+- onboarding の主役を `examples` 起点にするか、`basePdf` overlay 起点にするか
 
-### 2.1 Positioning
+## Explicit Non-Goals For The Next Slice
 
-`@pdfme/cli` は便利ツールではなく、pdfme v5 の machine interface として扱う。
-Phase 2 の主目的はコマンド数を増やすことではなく、agent / CI / human が同じ契約で扱える CLI を作ること。
-
-現時点での最重要課題は「できることを増やすこと」ではなく、
-「どこまで信じてよいかを明確にすること」。
-
-### 2.2 Current Scope
-
-Phase 2A で固定する対象:
-
-- `pdfme generate`
-- `pdfme validate`
-- `pdfme pdf2img`
-- `pdfme pdf2size`
-- `pdfme examples`
-
-### 2.3 Done So Far
-
-- `generate` / `validate` / `pdf2img` / `pdf2size` の共通 contract hardening
-- `--json` success / failure envelope の統一
-- invalid args の fail-fast 化
-- `validate` の unified job / stdin 対応
-- `pdf2img -o` の directory-only 明確化
-- implicit `output.pdf` の safety guard
-- `examples` の official manifest / template fetch を structured contract で扱うよう整理
-- `signature` の公式 plugin 化
-- official example font を unified job `options.font` に埋め込む対応
-- playground asset manifest の metadata-aware 化
-- manifest 掲載 templates の renderability を確認する CLI integration test 追加
-- manifest 掲載 official examples を `examples` / `generate` の real CLI path で全件 green にする E2E 追加
-- `pdf2size` の CLI test 追加
-- unknown flag / malformed JSON / malformed stdin / invalid enum / overwrite などの cross-command contract test 追加
-- version 表示の `0.0.0` 固定解消
-- schema plugin 解決を export 追従の自動収集へ整理
-- unsupported custom font / unknown schema type / auto-font unavailable を structured error に固定
-- local input 前提の `generate` / `validate` / `pdf2img` / `pdf2size` offline contract test を追加
-
-### 2.4 Remaining Work
-
-Phase 2A の blocking work は解消済み。
-次の残タスクは font policy revisit を product spec として詰め、font source matrix を `doctor` / `generate` 契約として固定すること。
-
-### 2.5 Exit Criteria
-
-1. official examples の CLI 対応範囲が manifest / metadata で定義されている
-2. CLI 対応 examples は CI で real CLI path の generate green
-3. `examples` は current official manifest を取得して deterministic に利用できる
-4. `--json` 指定時、全コマンドの成功失敗が JSON で parse 可能
-5. invalid args / invalid enum / invalid number / invalid page range が fail-fast + non-zero
-6. `validate` が template-only / unified job / stdin / `--strict` を一貫して扱える
-7. font / plugin / malformed input が internal crash ではなく structured error になる
-8. `generate` / `validate` / `pdf2img` / `pdf2size` が examples 取得とは独立にオフラインで成立する
-9. user-facing version 表示が workspace 内でも正しい
-
-### 2.6 Fixed Policies
-
-Examples:
-
-- `examples` と `playground` は同じ資産を共有する
-- examples は onboarding 用サンプルであると同時に、将来の AI / RAG 資産として扱う
-- manifest 掲載 assets は contract-first で整備する
-- manifest に掲載する official examples はすべて CLI-supported とする
-- CLI で安定サポートできない asset は manifest に載せない
-- `examples` は convenience command として扱い、current official manifest を参照する
-
-Plugin:
-
-- CLI は公式 plugin をすべて使える状態を目指す
-- CLI の標準機能として third-party plugin を汎用サポートする方針は取らない
-- third-party plugin 対応が必要なら、標準 product surface ではなく個別実装の扱いとする
-- `signature` は公式 plugin として扱う
-
-Font:
-
-- user-facing font contract は source ベースで扱う
-- `--font` は local `.ttf` path を強保証対象にする
-- 同名競合時は `--font` を `options.font` より優先する
-- unified job `options.font.<name>.data` は local `.ttf` path / `http(s)` `.ttf` URL / `.ttf` data URI を強保証対象にする
-- CJK fallback は implicit `NotoSansJP` cache / download で吸収する
-- `otf` / `ttc` / missing local path / unsupported protocol は fail-fast + structured error に寄せる
-- unsupported font / plugin / runtime 条件は generate 実行後の crash ではなく structured error にする
-
-Font policy revisit memo:
-
-- 現行の source contract は短期的には local/remote/data-uri の `.ttf` と `NotoSansJP` を中心に置く
-- 次の検討候補は「Google Fonts にある font family / weight / style を公式サポート対象にする」方針
-- これで多くの user needs を満たせる可能性が高く、単一フォント名の強保証より自然な product contract になりうる
-- その場合でも runtime contract は別途必要で、local `.ttf` / cached Google Fonts / unresolved remote font をどう切るかを明示する
-- `otf` / `ttc` を引き続き unsupported にするか、Google Fonts support とあわせて再評価する
-- offline 条件、cache 方針、`validate --json` / `generate --json` で返す structured error shape を合わせて設計する
-- source contract の次段階は Google Fonts policy と runtime matrix の固定
-
-Font policy decision (2026-03-26):
-
-- current CLI の official remote font source は raw font asset URL ベースで扱う
-- `fonts.gstatic.com` の direct `.ttf` asset URL は official remote source として扱う
-- `fonts.googleapis.com/css*` の stylesheet API は font binary ではないため unsupported とし、fail-fast + structured error に寄せる
-- Google Fonts の family / weight / style を declarative に解決する専用 surface は、今回の slice では導入しない
-- 強保証対象は local `.ttf` / public direct `.ttf` URL / `.ttf` data URI / inline bytes とし、拡張子や media type が曖昧な source は warning 付き best-effort に留める
-- CLI が cache する remote font は implicit `NotoSansJP` のみとし、explicit remote font は generate 実行時の source 解決に任せる
-
-Decision recorded (2026-03-27):
-
-- declarative Google Fonts surface は Phase 2B に入れず、raw asset URL contract を維持する
-- explicit remote font cache も product surface に追加せず、`needsNetwork` diagnosis + runtime failure contract の明確化に留める
-- もし上記 2 点のどちらかを product 化するなら、実装前に CLI syntax / cache location / offline semantics / `--json` failure shape を spec に起こす
-
-JSON / exit code:
-
-- `--json` 指定時は stdout を JSON のみに固定
-- human-readable な補足は stderr に寄せる
-- failure path の shape を command ごとに変えない
-
-I/O:
-
-- `pdf2img -o` は当面 directory-only
-- 暗黙の `output.pdf` は安全策付きで扱う
-
-Offline:
-
-- core commands は local input があれば offline で成立させる
-- `examples` は network 前提の convenience command として扱う
-
-Validation / inspection:
-
-- `inspect` は独立コマンドとしては作らない
-- template/job の構造把握は `validate` の出力拡張で吸収する
-- 将来的に `validate --json` で pages, fields, schema types, required fonts/plugins, basePdf summary を返せるようにする
-
-### 2.7 Not In Scope For Phase 2A
-
-次は roadmap から外す、または Phase 2A の対象外とする。
-
-- `list-schemas`
-- `schema-info`
-- `template create`
-- `template add-field`
-- markdown plugin の CLI 露出
-- `md2pdf`
-
-理由:
-
-- `list-schemas` / `schema-info` は、CLI を公式 plugin 専用とする方針なら優先度が低い
-- `template create` / `template add-field` は、examples と直接 JSON 編集で代替できる
-- markdown plugin / `md2pdf` は、CLI hardening ではなく別の product track
-
-## Phase 2B: Operational UX
-
-Status: 完了
-
-Phase 2A 完了後の first slice として `pdfme doctor` の contract を追加した。
-現時点では env 診断、`doctor <job-or-template>`、`doctor fonts <job-or-template>`、generate 相当の output runtime/path 診断、font source contract の first pass、runtime permission matrix、font edge-case matrix を実装し、Google Fonts / remote font policy も「direct asset URL を official source、stylesheet API は unsupported」として固定した。scope judgment、remote font の network-failure contract 固定、closeout 条件の明文化、docs/spec 反映は完了しており、以後は post-closeout polish と別トラック整理に移る。
-
-### `doctor` の具体像
-
-目的:
-
-- generate 実行前に、その job / template がこの環境で成功可能かを自己診断できるようにする
-- font / plugin / runtime / path 問題を user と agent の両方が早い段階で特定できるようにする
-
-最小スコープ:
-
-- [x] `pdfme doctor`
-  - Node version / CLI version / OS
-  - `cwd` / temp dir / font cache の状態
-  - 書き込み可否と基本的な runtime 前提の確認
-- [x] `pdfme doctor <job-or-template>`
-  - JSON parse 可否
-  - `validate` 相当の検査
-  - basePdf の path 解決可否
-  - 使用 schema types
-  - 必要 official plugins
-  - 必要 fonts と unsupported conditions
-  - generate output path / implicit overwrite / image output path の runtime 診断
-- [x] `pdfme doctor fonts <job-or-template>`
-  - custom font path の存在確認
-  - `.ttf` 以外の unsupported 検出
-  - auto-font で吸収可能かの診断
-- [x] `--json`
-  - 診断結果を構造化して返す
-  - blocking issue があれば non-zero
-
-期待する効果:
-
-- support cost の削減
-- generate 失敗前の早期自己診断
-- agent からの安全な事前チェック
-
-### Phase 2B Closeout Criteria
-
-Phase 2B を close する条件は次のとおり。
-
-1. `doctor --json` の `environment` / `input` / `fonts` target が stable で、blocking issue の有無を `healthy` で machine-readable に判定できる
-2. `doctor` の font diagnosis が explicit / implicit source、`needsNetwork`、supported / unsupported 条件を JSON で返し、generate 前の事前判断に使える
-3. `generate --json` が explicit remote font の network failure / HTTP failure / timeout / size safety limit 超過を `EFONT` + structured details (`fontName`, `url`, `provider`, `timeoutMs`, `maxBytes`) で返す
-4. explicit remote font policy は raw asset URL contract のまま固定し、declarative Google Fonts surface と explicit remote cache は Phase 2B に入れない
-5. user-facing docs / README が `doctor`, `examples --withInputs`, `generate --image --grid`, remote font safety limit, `basePdf` overlay workflow を current contract として説明している
-6. closeout 後の次優先は feature expansion ではなく command 間 UX parity / docs polish か、別トラックの Rich Text / Markdown spec に切り分けられている
+- 大きな新 CLI command の追加
+- declarative font surface の再設計
+- explicit remote font cache の product 化
+- `md2pdf` の単独先行
+- Rich Text / Markdown track を CLI polish と混ぜること
 
 ## Separate Future Track: Rich Text / Markdown Authoring
 
-Status: 未着手
+強いユースケースは、本文 PDF を Markdown / Rich Text から先に作り、その出力を `basePdf` として再利用し、署名欄や追記事項だけを後段 overlay する flow。
 
-これは Phase 2A の一部ではなく、別トラックとして扱う。
+この track では次を前提にする:
 
-### Goal
+- `md2pdf` を先に単独実装しない
+- まず product spec を作る
+- その後に CLI surface の必要性を判断する
 
-AI に「雇用契約書を作って」などと依頼したときに、AI が文面を生成し、
-それをそのまま PDF 化できるルートを作る。
+## Risks
 
-このトラックの有力な実務フローは、Markdown/Rich Text で本文 PDF を先に作り、
-その出力を `basePdf` として再利用し、署名欄・日付・氏名・追記事項だけを template overlay で後段追加する形である。
-NDA や契約書のような文書では、この 2 段構成が自然で、Markdown authoring と pdfme の既存 `basePdf` workflow の相性がよい。
-
-### Why This Is Separate
-
-- これは CLI hardening ではなく、新しい document authoring surface の追加
-- rich text / markdown schema 自体の設計が先に必要
-- 実装は軽く終わる種類ではなく、schema / rendering / editor / DX をまとめて考える必要がある
-
-### Assumptions
-
-- rich text schema や markdown-capable plugin の検討を先に進める
-- `md2pdf` は markdown plugin / rich text foundation ができた後に実現可能になる
-- issue #564 など既存の rich text 構想を踏まえ、spec から詰める
-- markdown から生成した PDF を、そのまま `basePdf` にして overlay/template を重ねる composable workflow を重要ユースケースとして扱う
-- 具体例として、NDA の本文は Markdown から生成し、署名位置や記入欄だけを pdfme template で差し込む flow を想定する
-
-### Current Decision
-
-- Phase 2A の backlog には入れない
-- `md2pdf` を単独先行で作らない
-- まずは rich text / markdown plugin の product spec を固める
-
-## Immediate Next Actions
-
-Status:
-
-- Phase 2B の contract closeout と docs/spec 反映は完了した
-- 次の作業は feature expansion ではなく post-closeout polish と separate track の整理である
-
-### Fixed Decisions (2026-03-27)
-
-- declarative Google Fonts surface は Phase 2B に入れない
-- explicit remote font cache / offline workflow は Phase 2B に入れない
-- explicit remote font は network-dependent input として扱う
-- `doctor` は remote font source に対して `needsNetwork` を診断できる状態を維持する
-- `generate --json` / `doctor --json` は remote font fetch failure を internal crash ではなく structured error として返す
-- local `.ttf` / data URI / inline bytes の offline success contract は維持する
-
-### Recently Fixed (2026-03-27)
-
-- `doctor` が remote font source に対して `needsNetwork` を machine-readable に返すことを test で維持
-- `generate --json` が explicit remote font の network failure / HTTP failure を `EFONT` + structured details で返すことを固定
-- explicit remote font は CLI 側で事前解決し、timeout / size safety limit を掛けてから generator に渡す
-- `pdf2img` / `pdf2size` に `--verbose` parity を追加し、`--json` 時の stdout 純度を崩さずに stderr へ補足情報を出す contract を固定
-- `generate` / `validate` / `doctor` / `examples` にも `--verbose` parity を広げ、source / mode / output summary を stderr に出しつつ `--json` stdout purity を test で固定
-- `multiVariableText` について、`validate --json` / `doctor --json` が field-level input hint (`expectedInput.kind`, `variableNames`, `example`) を返し、unified job の plain string input を invalid / unhealthy として報告し、`generate --json` は同条件を `EVALIDATE` + guidance 付きで fail-fast するよう固定
-
-### Recommended Order
-
-1. post-closeout の command UX parity を詰める
-   - `--verbose` second pass は実装済みなので、次は JSON payload と human-readable 出力の揃え方を見直す
-   - cross-command で `--json` stdout purity を崩さない方針を維持する
-2. special input discoverability の次 slice を判断する
-   - `multiVariableText` first pass の hint surface を維持する
-   - 他の特殊入力型まで `inputHints` を広げるか、型ごとの contract を先に整理してから進める
-
-### Post-Closeout Polish Queue
-
-- 実利用フィードバックでは、alpha 表記に対して core workflow は実用水準にあることを確認済み
-- command 間の `--verbose` parity second pass は `generate` / `validate` / `doctor` / `examples` まで実装済み
-- 次の command 間 UX parity 候補は、verbose 以外の flag / JSON payload / human-readable 出力の揃え方を見直すこと
-- `examples --withInputs` / `generate --image --grid` / `doctor` の強みは README / docs / release note で前面に出す
-- 実利用で確認できた「23 templates green / CJK auto-font / unified job / image+grid / doctor」の要約を user-facing messaging に落とす
-- 既存 PDF を `basePdf` として使い、その上に text 等の field を重ねる workflow は実務価値が高いため、discoverability を上げる
-- 具体例として「既存の契約書 PDF に氏名・日付・条項補足を差し込む」overlay workflow を docs / examples 候補として残す
-- `pdf2img` / `pdf2size` -> `basePdf` template 作成 -> `generate` の流れは onboarding で優先的に見せる
-- Markdown/Rich Text -> PDF -> `basePdf` overlay という 2 段 workflow は、NDA / 契約書 / 申込書の署名フローで強いので、将来 examples / docs に昇格させる
-- `multiVariableText` の入力形式は発見しづらく、plain string を渡したときの失敗理由が伝わりにくいので、UX 改善候補として優先度が高い
-- `multiVariableText` first pass は実装済み
-  - failure で expected variable names と JSON string 例を返す
-  - `doctor` / `validate --json` が field ごとの期待入力形式を返す
-- 次の input discoverability 候補は、`multiVariableText` 以外の特殊入力型まで hint surface を広げるかを判断すること
-- 「並列ツール呼び出しの一括キャンセル」は CLI ではなく agent/runner 側の挙動なので、CLI 改善項目とは分けて扱う
-
-### If Scope Changes
-
-- declarative Google Fonts surface を入れる場合は、実装前に CLI syntax / weight-style 解決 / offline semantics / JSON error shape / test matrix を spec 化する
-- explicit remote cache workflow を入れる場合は、cache location / invalidation / permission model / offline fallback / `doctor` 出力を spec 化してから着手する
-
-### Not A Phase 2B Blocker
-
-- Rich Text / Markdown Authoring は別トラックのため、Phase 2B closeout の blocker にしない
-
-## Implementation Task List
-
-### Track A: examples manifest CI gate
-
-- [x] `playground/public/template-assets/manifest.json` と `index.json` の整合性を検証する test を追加する
-- [x] manifest 各 entry の `path` と `thumbnailPath` の実在確認を test に追加する
-- [x] manifest 各 entry の `pageCount` / `fieldCount` / `schemaTypes` / `fontNames` / `hasCJK` / `basePdfKind` が実 template と一致することを検証する
-- [x] 上記 checks を新 workflow ではなく既存の `npm run test` に載せる
-- [x] examples fixture は localhost server ではなく preload した fetch shim を使う現行方針を維持する
-
-### Track B: real CLI path green の CI 固定
-
-- [x] manifest 掲載 official examples について real CLI path の `examples --withInputs` -> `generate` が通る E2E を CI で維持する
-- [x] real CLI path の examples E2E が child process 実行であることを維持する
-- [x] examples と playground が shared assets 前提で壊れないよう、manifest 更新時に CLI 側 test も同時に落ちる状態を維持する
-- [x] manifest に載る official examples はすべて CLI-supported である contract を metadata / test で固定する
-
-### Track C: examples metadata の contract 明示化
-
-- [x] official examples の CLI 対応範囲を manifest / metadata で表現する項目を定義する
-- [x] metadata から official examples contract を判定できるようにする
-- [x] examples metadata の shape を test で固定し、意図しない変更を検出できるようにする
-- [x] `examples` が current official manifest を deterministic に利用できる前提を崩さないことを確認する
-
-### Track D: `validate` 出力拡張
-
-- [x] `inspect` を新設せず、`validate --json` で inspection needs を吸収する方針を実装に落とす
-- [x] `validate --json` の success payload に pages, fields, schema types, required fonts/plugins, basePdf summary を追加する
-- [x] template-only / unified job / stdin / `--strict` の各入力経路で同じ contract を返すようにする
-- [x] unsupported font / plugin / malformed input を internal crash ではなく structured error で返すことを test で固定する
-- [x] success / failure envelope を他 command と同様に parse 可能な JSON contract として維持する
-
-### Track E: Phase 2A 完了判定
-
-- [x] Exit Criteria 1: official examples の CLI 対応範囲が manifest / metadata で定義されていることを確認する
-- [x] Exit Criteria 2: CLI 対応 examples が CI で real CLI path generate green であることを確認する
-- [x] Exit Criteria 3: `examples` が current official manifest を deterministic に取得・利用できることを確認する
-- [x] Exit Criteria 4: `--json` 指定時に全対象 command の成功失敗が JSON で parse 可能であることを確認する
-- [x] Exit Criteria 5: invalid args / invalid enum / invalid number / invalid page range が fail-fast + non-zero であることを確認する
-- [x] Exit Criteria 6: `validate` が template-only / unified job / stdin / `--strict` を一貫処理することを確認する
-- [x] Exit Criteria 7: font / plugin / malformed input が structured error になることを確認する
-- [x] Exit Criteria 8: `generate` / `validate` / `pdf2img` / `pdf2size` が examples 取得と独立に offline で成立することを確認する
-- [x] Exit Criteria 9: workspace 内でも user-facing version 表示が正しいことを確認する
-- [x] Phase 2A 完了までは `doctor` に着手しない
-
-### Memo: examples CI gate の具体化
-
-目的:
-
-- playground asset 更新で CLI が静かに壊れるのを PR 時点で止める
-- `examples` を cache/versioning 付き配布機構ではなく、current official manifest を読む convenience command として安定化する
-- official examples を「参考 JSON」ではなく、CLI が実際に依存してよい入力資産として固定する
-
-最小チェック項目:
-
-- `playground/public/template-assets/manifest.json` と `index.json` の内容整合性を確認する
-- manifest の各 entry について `path` / `thumbnailPath` が実在することを確認する
-- manifest の各 entry について `pageCount` / `fieldCount` / `schemaTypes` / `fontNames` / `hasCJK` / `basePdfKind` が実 template と一致することを確認する
-- manifest 掲載 official examples が real CLI path の `examples --withInputs` -> `generate` で green であることを確認する
-
-実装メモ:
-
-- 新しい複雑な workflow は増やさず、既存 PR CI の `npm run test` に乗る test として実装する
-- `examples` は current manifest を読むだけなので、versioned manifest や local cache を CI の必須契約にはしない
-- fixture は localhost server ではなく preload した fetch shim を使う現行方針を維持する
-
-## Verification Summary
-
-確認済みの要点:
-
-- root の `build` / `test` / `lint` / `typecheck` が通る状態まで整理済み
-- 全 package の Vitest / Vite 移行後も package exports 経由で解決できる
-- playground は package root export 前提で動作する構成に整理済み
-- official examples / manifest / plugin / font 周りの CLI integration test を追加済み
-- manifest 掲載 official examples は real CLI path の `examples` / `generate` 経由で green を確認済み
-- `--json` failure contract は cross-command test で固定を進めている
-- `generate` の unknown schema type は fail-fast + `EVALIDATE` で返す
-- CJK auto-font unavailable / `--noAutoFont` without explicit font は `EFONT` で返す
-- explicit remote font の network failure / HTTP failure は `generate --json` で `EFONT` + structured details に固定済み
-- explicit remote font は CLI 側で事前解決し、timeout / size safety limit を掛ける実装に整理済み
-- `doctor` は env / input / fonts / runtime 診断を `--json` で返せる
-- font source contract は local path / `http(s)` URL / data URI の `.ttf` を中心に整理済み
-- Google Fonts policy は「direct `fonts.gstatic.com` asset URL は supported、`fonts.googleapis.com/css*` stylesheet API は unsupported」で固定済み
-- output dir / permission 系の runtime matrix は `doctor` test で固定済み
-- font source edge-case matrix は `doctor` / `generate` test で固定済み
-- `packages/cli` test は 118 件 green、lint も green
-
-## Known Risks
-
-| リスク | 対策 |
-|--------|------|
-| official examples と playground assets の乖離 | shared manifest と renderability test を維持する |
-| examples manifest 更新漏れ | manifest 整合性 test と real CLI path test を CI で維持する |
-| font / plugin 契約の揺れ | 短期 contract を固定し unsupported は structured error に寄せる |
-| remote URL safety が hostname heuristic ベース | CLI 側の timeout / size limit を維持し、必要なら別 slice で stronger SSRF hardening を検討する |
-| `--json` / invalid args の挙動差 | cross-command E2E matrix で固定する |
-| `vp lint` の type-aware lint 完全移行未了 | 型検証 gate は当面 `tsc -b` を維持する |
-| official plugin と docs / playground / CLI の実装差分 | shared implementation と integration test を維持する |
+| リスク | 対応方針 |
+|--------|----------|
+| examples と playground assets の乖離 | shared assets 前提を維持する |
+| command ごとの payload / output 差の拡大 | parity を継続監視する |
+| spec なしで新 surface が増える | 先に `PLAN.md` に判断を書く |
 
 ## Notes For Next Turn
 
-- この `PLAN.md` を先に読む
-- Phase 2 の主目的は command expansion ではなく contract hardening
-- official examples は shared assets 前提で CLI green を維持する
-- `real CLI path` の examples E2E は child process で `examples` / `generate` を実行して確認する
-- examples fixture は localhost server ではなく preload した fetch shim で差し替える
-- `inspect` は `validate` の出力拡張へ吸収する
-- CLI は公式 plugin 専用の方針で進める
-- Next priority は Phase 2B closeout ではなく post-closeout polish を進めること
-- 強い追加要件がなければ、次の実装 slice は feature 追加ではなく command 間 UX parity / docs polish / input discoverability の深掘り
-- `pdf2img` / `pdf2size` の `--verbose` parity は実装済み。次は verbose 以外の cross-command 一貫性を見直す
-- `multiVariableText` の expected input discoverability first pass は実装済み。次は他の特殊入力型に同じ hint surface を広げるか判断する
-- 既存 PDF を `basePdf` にして上書き生成する workflow はすでに可能なので、新機能というより docs/examples/discoverability 強化として扱う
-- Rich Text / Markdown track では、「本文を Markdown から作り、署名欄だけ overlay する」NDA 系 workflow を強いユースケースとして扱う
-- もし新 surface を追加するなら、先に syntax / offline / cache / JSON error shape を `PLAN.md` に書き起こしてから着手する
-- `PLAN.md` の checkpoint は次回 commit / push 後に更新する
-- Phase 2A は完了済み。次は `doctor` を operational UX として再評価する
-- rich text / markdown / `md2pdf` は別トラックとして spec から検討する
+- まずこの `PLAN.md` を読む
+- 次の slice は feature 追加ではなく parity / discoverability / docs polish を優先する
+- 新しい surface を入れる前に、ここに spec と non-goals を書く
