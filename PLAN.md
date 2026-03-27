@@ -4,7 +4,7 @@ Last updated: 2026-03-27 JST
 
 Latest committed checkpoint:
 
-- `0fbca8a8` `fix(cli): harden remote font resolution safety`
+- `c962fc5b` `docs(plan): note basePdf workflow positioning`
 
 ## Context
 
