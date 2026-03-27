@@ -4,7 +4,7 @@ Last updated: 2026-03-27 JST
 
 Latest committed checkpoint:
 
-- `c962fc5b` `docs(plan): note basePdf workflow positioning`
+- `c63f1be6` `docs(plan): note workflow and cli UX feedback`
 
 ## Context
 
