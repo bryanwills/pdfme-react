@@ -318,6 +318,16 @@ Status:
    - explicit remote font の `EFONT` contract を user-facing docs に反映する
    - timeout / size safety limit を remote font contract の補足として記載する
 
+### Post-Closeout Polish Queue
+
+- 実利用フィードバックでは、alpha 表記に対して core workflow は実用水準にあることを確認済み
+- closeout 後の最初の polish 候補は command 間の UX 一貫性で、まず `pdf2img` に `--verbose` parity が必要かを判断する
+- `examples --withInputs` / `generate --image --grid` / `doctor` の強みは README / docs / release note で前面に出す
+- 実利用で確認できた「23 templates green / CJK auto-font / unified job / image+grid / doctor」の要約を user-facing messaging に落とす
+- 既存 PDF を `basePdf` として使い、その上に text 等の field を重ねる workflow は実務価値が高いため、discoverability を上げる
+- 具体例として「既存の契約書 PDF に氏名・日付・条項補足を差し込む」overlay workflow を docs / examples 候補として残す
+- `pdf2img` / `pdf2size` -> `basePdf` template 作成 -> `generate` の流れは onboarding で優先的に見せる
+
 ### If Scope Changes
 
 - declarative Google Fonts surface を入れる場合は、実装前に CLI syntax / weight-style 解決 / offline semantics / JSON error shape / test matrix を spec 化する
@@ -437,6 +447,8 @@ Status:
 - CLI は公式 plugin 専用の方針で進める
 - Next priority は Phase 2B closeout 条件と docs/spec 反映を更新すること
 - 強い追加要件がなければ、次の実装 slice は feature 追加ではなく closeout / docs 整理
+- closeout 後の最初の polish 候補は command 間の flag/UX 一貫性で、`pdf2img --verbose` parity を起点に見直す
+- 既存 PDF を `basePdf` にして上書き生成する workflow はすでに可能なので、新機能というより docs/examples/discoverability 強化として扱う
 - もし新 surface を追加するなら、先に syntax / offline / cache / JSON error shape を `PLAN.md` に書き起こしてから着手する
 - `PLAN.md` の checkpoint は次回 commit / push 後に更新する
 - Phase 2A は完了済み。次は `doctor` を operational UX として再評価する
