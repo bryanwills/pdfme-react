@@ -21,6 +21,7 @@ const pdf2imgArgs = {
   scale: { type: 'string' as const, description: 'Render scale', default: '1' },
   imageFormat: { type: 'string' as const, description: 'Image format: png | jpeg', default: 'png' },
   pages: { type: 'string' as const, description: 'Page range (e.g., 1-3, 1,3,5)' },
+  verbose: { type: 'boolean' as const, alias: 'v', description: 'Verbose output', default: false },
   json: {
     type: 'boolean' as const,
     description: 'Machine-readable JSON output (includes size info)',
@@ -73,6 +74,16 @@ export default defineCommand({
         } else {
           mkdirSync(outputDir, { recursive: true });
         }
+      }
+
+      if (args.verbose) {
+        console.error(`Input PDF: ${args.file}`);
+        console.error(`Total pages: ${sizes.length}`);
+        console.error(`Selected pages: ${pageIndices.map((pageIdx) => pageIdx + 1).join(', ')}`);
+        console.error(`Output directory: ${outputDir}`);
+        console.error(`Image format: ${imageFormat}`);
+        console.error(`Scale: ${scale}`);
+        console.error(`Grid: ${args.grid ? `enabled (${gridSize}mm)` : 'disabled'}`);
       }
 
       const results: Array<{ image: string; page: number; width: number; height: number }> = [];

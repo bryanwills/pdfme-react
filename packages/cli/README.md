@@ -258,6 +258,36 @@ warning に留めるもの:
 
 `doctor fonts` はこの source contract をそのまま machine-readable に返し、`generate` は local path を事前解決して structured error に寄せる。
 
+### Remote Font Runtime Contract
+
+explicit remote font (`options.font.<name>.data = https://...`) は CLI 側で先に解決してから generator に渡す。
+
+- `generate --json` では network failure / HTTP failure / timeout / size safety limit 超過を `EFONT` で返す
+- error details には少なくとも `fontName`, `url`, `provider`, `timeoutMs`, `maxBytes` が入る
+- current CLI が cache する remote font は implicit `NotoSansJP` のみ
+- explicit remote font 用の cache / offline fallback workflow は current product surface に含めない
+- remote fetch timeout は 15 秒
+- remote fetch size limit は 32 MiB
+
+失敗例:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "EFONT",
+    "message": "Failed to fetch remote font data from https://fonts.example.com/network-error.ttf. fetch failed",
+    "details": {
+      "fontName": "PinyonScript",
+      "url": "https://fonts.example.com/network-error.ttf",
+      "provider": "genericPublic",
+      "timeoutMs": 15000,
+      "maxBytes": 33554432
+    }
+  }
+}
+```
+
 ### 終了コード
 
 | コード | 意味 |
@@ -306,6 +336,31 @@ pdfme validate template.json --strict
 
 `validate` は template 単体だけでなく unified job (`{ template, inputs, options? }`) も受理する。`--strict` を付けると warning も exit code 1 に昇格する。
 
+`--json` では `inputHints` も返す。これにより field ごとの期待入力形式を事前に把握できる。たとえば `text` は plain string、`multiVariableText` は JSON string object を期待する。
+
+```json
+[
+  {
+    "name": "title",
+    "type": "text",
+    "pages": [1],
+    "required": false,
+    "expectedInput": { "kind": "string" }
+  },
+  {
+    "name": "invoiceMeta",
+    "type": "multiVariableText",
+    "pages": [1],
+    "required": true,
+    "expectedInput": {
+      "kind": "jsonStringObject",
+      "variableNames": ["inv"],
+      "example": "{\"inv\":\"INV\"}"
+    }
+  }
+]
+```
+
 型名が不正な場合、Levenshtein 距離に基づく修正候補を提示する:
 
 ```
@@ -353,8 +408,9 @@ pdfme doctor job.json -o artifacts/out.pdf --image --imageFormat jpeg --json
   - CJK 検出時に auto-font が必要か、cache があるか、`--noAutoFont` だと blocking になるか
   - `generate` 相当の output path safety (`output.pdf` の implicit overwrite guard, writable dir, image output preview)
 - `pdfme doctor fonts <job-or-template>`
-  - `options.font` の source 種別 (`localPath` / `url` / `dataUri` / `inlineBytes`)
+  - `options.font` の source 種別 (`localPath` / `url` / `dataUri` / `inlineBytes` / `invalid`)
   - local font path の解決結果と存在確認
+  - remote source ごとの `provider`, `needsNetwork`, `supportedFormat`
   - `.ttf` 以外の unsupported 検出
   - implicit default font / auto NotoSansJP を含む effective font 前提
 
@@ -363,6 +419,9 @@ runtime/path の事前診断には `generate` と同じく `-o, --output`, `--fo
 ### `--json` 契約
 
 `doctor` も `validate` と同様に、コマンド自体が実行できた場合は `ok: true` を返し、blocking issue の有無は `healthy` で表す。`target` は `environment` / `input` / `fonts` のいずれかになる。
+
+font payload の `explicitSources` / `implicitSources` には `needsNetwork` が含まれるため、agent は「その source が今の環境で network 前提か」を事前判定できる。
+同様に `inputHints` には field ごとの期待入力形式が含まれるため、`text` と `multiVariableText` の違いを generate 前に判定できる。
 
 環境診断の例:
 
@@ -415,6 +474,35 @@ input 診断の例:
 }
 ```
 
+`multiVariableText` を含む template/job では、`inputHints` から expected variable names と JSON string 例を確認できる。
+
+### `multiVariableText` Input Contract
+
+`multiVariableText` は plain string ではなく、変数名をキーに持つ **JSON string object** を期待する。
+
+template:
+
+```json
+{
+  "name": "invoiceMeta",
+  "type": "multiVariableText",
+  "text": "Invoice {inv}",
+  "variables": ["inv"]
+}
+```
+
+input:
+
+```json
+[
+  {
+    "invoiceMeta": "{\"inv\":\"INV-001\"}"
+  }
+]
+```
+
+plain string を渡すと、`generate --json` は `EVALIDATE` で fail-fast し、expected variable names と example を返す。
+
 font 診断の例:
 
 ```json
@@ -459,11 +547,15 @@ pdfme pdf2img invoice.pdf --grid --gridSize 10
 # 特定ページのみ
 pdfme pdf2img invoice.pdf --pages 1-2
 
+# 詳細出力を stderr に出す
+pdfme pdf2img invoice.pdf -o ./images/ --verbose
+
 # 出力先指定 + JSON (サイズ情報付き)
 pdfme pdf2img invoice.pdf -o ./images/ --json
 ```
 
 `-o, --output` は **ディレクトリ専用**。`page-%d.png` や単一ファイル名はサポートしない。
+`-v, --verbose` を付けると、入力 PDF、総ページ数、対象ページ、出力ディレクトリ、format、scale、grid 条件を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
 ### `--json` 出力
 
@@ -492,6 +584,8 @@ $ pdfme pdf2size invoice.pdf --json
   "pages": [{ "page": 1, "width": 210, "height": 297 }]
 }
 ```
+
+`-v, --verbose` を付けると、入力 PDF と総ページ数を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
 ---
 
@@ -541,10 +635,13 @@ pdfme examples invoice --withInputs -o job.json
 
 # 2. job.json を編集してテンプレートを作成
 
-# 3. 生成して結果を画像で確認
+# 3. generate 前に doctor で前提を確認
+pdfme doctor job.json --json
+
+# 4. 生成して結果を画像で確認
 pdfme generate job.json -o out.pdf --image
 
-# 4. 画像を確認 → JSON を微調整 → 3 に戻る
+# 5. 画像を確認 → JSON を微調整 → 3 に戻る
 ```
 
 ### 2. 既存 PDF にフィールドを追加する
@@ -575,10 +672,13 @@ EOF
 # 4. 入力データを作成
 echo '[{ "amount": "¥1,234,567" }]' > inputs.json
 
-# 5. 生成して結果をグリッド付き画像で確認
+# 5. 生成前に path / font / basePdf を診断
+pdfme doctor template.json -o out.pdf --image --json
+
+# 6. 生成して結果をグリッド付き画像で確認
 pdfme generate -t template.json -i inputs.json -o out.pdf --image --grid
 
-# 6. 画像を確認 → テンプレートを微調整 → 5 に戻る
+# 7. 画像を確認 → テンプレートを微調整 → 5 に戻る
 ```
 
 ### 3. CI/CD でのテンプレート検証
@@ -601,12 +701,17 @@ packages/cli/
 │   ├── commands/
 │   │   ├── generate.ts       # PDF 生成 + 画像出力
 │   │   ├── validate.ts       # テンプレート検証
+│   │   ├── doctor.ts         # 環境 / font / runtime 診断
 │   │   ├── pdf2img.ts        # PDF → 画像変換
 │   │   ├── pdf2size.ts       # ページサイズ取得
 │   │   └── examples.ts       # テンプレート資産参照
 │   ├── contract.ts           # 共通 error / JSON / 引数契約
+│   ├── diagnostics.ts        # validate / doctor 用 inspection
+│   ├── schema-plugins.ts     # 公式 plugin の自動収集
 │   ├── grid.ts               # グリッド / スキーマ境界オーバーレイ描画
 │   ├── fonts.ts              # フォント読込 + CJK 自動 DL + キャッシュ
+│   ├── example-templates.ts  # current official manifest / template 取得
+│   ├── example-fonts.ts      # official examples 用 font URL 埋め込み
 │   ├── cjk-detect.ts         # CJK 文字検出
 │   ├── version.ts            # ビルド時注入の CLI version
 │   └── utils.ts              # ファイル I/O, 入力形式判定, 用紙サイズ検出
@@ -644,16 +749,14 @@ Vite で `target: node20`, 全依存を external にして単一 `dist/index.js`
 
 - **フォント複数指定**: citty が repeated string args を未サポートのため、カンマ区切り形式 (`--font "A=a.ttf,B=b.ttf"`) を使用
 - **カスタムフォント source contract**: 現時点の強保証は local path / `http(s)` URL / `data:` URI の `.ttf`。`.otf` / `.ttc` は unsupported error を返す
+- **explicit remote font cache**: current CLI は explicit remote font を保存しない。offline 前提にしたい場合は local `.ttf` か `data:` URI を使う
+- **Google Fonts stylesheet API**: `fonts.googleapis.com/css*` は supported source ではない。direct font asset URL を使う
 - **examples コマンド**: current の official manifest / template を network 越しに取得する convenience command。取得先は `PDFME_EXAMPLES_BASE_URL` 環境変数で上書き可能
 - **NotoSansJP の DL URL**: Google Fonts CDN の可変ウェイトフォント (~16MB) を使用。固定ウェイト版への切り替えでサイズ削減可能
 
-## 今後の拡張 (v2 以降)
+## 次の検討トラック
 
-| 機能 | 優先度 | 備考 |
-|------|--------|------|
-| `pdfme list-schemas` | 高 | 利用可能スキーマ一覧 + プロパティ詳細 |
-| `--diff` / `--maxDiff` | 中 | pixelmatch による画像差分比較 |
-| `pdfme inspect` | 中 | テンプレート構造の可視化表示 |
-| `pdfme dev` | 中 | Designer UI プレビューサーバー (ファイル変更監視) |
-| `pdfme template create/add-field` | 低 | CLI 上でのテンプレート JSON 操作 |
-| `--watch` | 低 | ファイル変更監視 + 自動再生成 |
+- command 間 UX parity の見直し: `pdf2img` / `pdf2size` の flag 一貫性や `--verbose` parity の再評価
+- input discoverability の改善: `multiVariableText` の期待入力形式を `doctor` / `validate --json` から見つけやすくする
+- docs / examples polish: `basePdf` overlay workflow と agent 向け onboarding の discoverability を上げる
+- Separate track: Rich Text / Markdown Authoring。CLI hardening とは別に spec から進め、Markdown/Rich Text で本文 PDF を作ってから pdfme template overlay を後段で重ねる workflow を主ユースケースに置く

@@ -5,6 +5,7 @@ import { detectPaperSize, readPdfFile } from '../utils.js';
 
 const pdf2sizeArgs = {
   file: { type: 'positional' as const, description: 'Input PDF file', required: false },
+  verbose: { type: 'boolean' as const, alias: 'v', description: 'Verbose output', default: false },
   json: { type: 'boolean' as const, description: 'Machine-readable JSON output', default: false },
 };
 
@@ -24,6 +25,12 @@ export default defineCommand({
 
       const pdfData = readPdfFile(args.file);
       const sizes = await pdf2size(pdfData);
+
+      if (args.verbose) {
+        console.error(`Input PDF: ${args.file}`);
+        console.error(`Total pages: ${sizes.length}`);
+      }
+
       const result = sizes.map((size, index) => ({
         page: index + 1,
         width: Math.round(size.width * 100) / 100,

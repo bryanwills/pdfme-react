@@ -12,6 +12,8 @@ import {
 } from '../contract.js';
 import { detectCJKInInputs, detectCJKInTemplate } from '../cjk-detect.js';
 import {
+  collectInputHints,
+  getInputContractIssues,
   inspectTemplate,
   KNOWN_TEMPLATE_KEYS,
   loadValidationSource,
@@ -267,6 +269,7 @@ export default defineCommand({
                 requiredPlugins: diagnosis.inspection.requiredPlugins,
                 requiredFonts: diagnosis.inspection.requiredFonts,
               },
+              inputHints: collectInputHints(source.template),
               diagnosis: {
                 fonts: createFontPayload(diagnosis.fontDiagnosis),
               },
@@ -281,6 +284,7 @@ export default defineCommand({
               environment,
               validation: diagnosis.validation,
               inspection: diagnosis.inspection,
+              inputHints: collectInputHints(source.template),
               diagnosis: {
                 basePdf: diagnosis.basePdfDiagnosis,
                 fonts: createFontPayload(diagnosis.fontDiagnosis),
@@ -392,6 +396,8 @@ function buildInputDiagnosis(
     } catch (error) {
       issues.unshift(error instanceof Error ? error.message : String(error));
     }
+
+    issues.push(...getInputContractIssues(source.template, source.inputs ?? []));
   }
 
   return {

@@ -51,6 +51,15 @@ For the planned next major release changes, see the [migration guide draft](webs
 
 Need interactive help? Use [DeepWiki](https://deepwiki.com/pdfme/pdfme) to ask questions about pdfme's documentation and source code directly.
 
+## CLI Workflow
+
+For agentic workflows, local verification, or JSON-first template iteration, use [`@pdfme/cli`](packages/cli/README.md).
+
+- `pdfme validate`: validate template or unified job JSON before generation
+- `pdfme doctor`: diagnose runtime, font, `basePdf`, and output-path issues before `generate`
+- `pdfme generate --image --grid`: generate PDFs and inspect layout via rendered page images
+- `pdfme examples --withInputs`: export official example assets as a unified job you can edit and regenerate
+
 ## Examples Using pdfme
 
 If you're looking for code examples to get started with pdfme, check out the [pdfme-playground website](https://playground.pdfme.com/) and the [playground source code](https://github.com/pdfme/pdfme/tree/main/playground). Setup instructions can be found in the [DEVELOPMENT.md](DEVELOPMENT.md) file.

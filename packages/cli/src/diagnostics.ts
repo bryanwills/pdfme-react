@@ -28,6 +28,18 @@ export interface ValidationInspection {
   };
 }
 
+export interface FieldInputHint {
+  name: string;
+  type: string;
+  pages: number[];
+  required: boolean;
+  expectedInput: {
+    kind: 'string' | 'jsonStringObject';
+    variableNames?: string[];
+    example?: string;
+  };
+}
+
 export interface ValidationSource {
   mode: 'template' | 'job';
   template: Record<string, unknown>;
@@ -174,6 +186,76 @@ export function inspectTemplate(
   };
 }
 
+export function collectInputHints(template: Record<string, unknown>): FieldInputHint[] {
+  const hintMap = new Map<string, FieldInputHint>();
+  const schemaPages = normalizeSchemaPages(template.schemas);
+
+  for (let pageIdx = 0; pageIdx < schemaPages.length; pageIdx++) {
+    for (const schema of schemaPages[pageIdx]) {
+      const name = typeof schema.name === 'string' ? schema.name : '';
+      const type = typeof schema.type === 'string' ? schema.type : '';
+      const readOnly = schema.readOnly === true;
+
+      if (!name || !type || readOnly) {
+        continue;
+      }
+
+      const hint = buildFieldInputHint(schema, pageIdx + 1);
+      const key = [
+        hint.name,
+        hint.type,
+        hint.expectedInput.kind,
+        hint.expectedInput.example ?? '',
+        (hint.expectedInput.variableNames ?? []).join('\u0000'),
+      ].join('\u0001');
+      const existing = hintMap.get(key);
+
+      if (existing) {
+        existing.pages = [...new Set([...existing.pages, pageIdx + 1])].sort((a, b) => a - b);
+        existing.required = existing.required || hint.required;
+        continue;
+      }
+
+      hintMap.set(key, hint);
+    }
+  }
+
+  return [...hintMap.values()].sort(
+    (a, b) => a.name.localeCompare(b.name) || a.type.localeCompare(b.type),
+  );
+}
+
+export function validateInputContracts(
+  template: Record<string, unknown>,
+  inputs: Record<string, unknown>[],
+): void {
+  const issues = getInputContractIssues(template, inputs);
+  if (issues.length > 0) {
+    fail(issues[0], { code: 'EVALIDATE', exitCode: 1 });
+  }
+}
+
+export function getInputContractIssues(
+  template: Record<string, unknown>,
+  inputs: Record<string, unknown>[],
+): string[] {
+  const hints = collectInputHints(template).filter((hint) => hint.type === 'multiVariableText');
+  const issues: string[] = [];
+
+  for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
+    const input = inputs[inputIndex] ?? {};
+
+    for (const hint of hints) {
+      const issue = getMultiVariableTextInputIssue(hint, input, inputIndex);
+      if (issue) {
+        issues.push(issue);
+      }
+    }
+  }
+
+  return issues;
+}
+
 export async function loadValidationSource(
   file: string | undefined,
   options: { noInputMessage: string },
@@ -262,6 +344,152 @@ export function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<st
 
     return [];
   });
+}
+
+function buildFieldInputHint(
+  schema: Record<string, unknown>,
+  page: number,
+): FieldInputHint {
+  const type = schema.type as string;
+
+  if (type === 'multiVariableText') {
+    const variableNames = getUniqueStringValues(
+      Array.isArray(schema.variables) ? schema.variables : [],
+    );
+
+    return {
+      name: schema.name as string,
+      type,
+      pages: [page],
+      required: schema.required === true,
+      expectedInput: {
+        kind: 'jsonStringObject',
+        variableNames,
+        example: buildMultiVariableTextExample(variableNames),
+      },
+    };
+  }
+
+  return {
+    name: schema.name as string,
+    type,
+    pages: [page],
+    required: schema.required === true,
+    expectedInput: {
+      kind: 'string',
+    },
+  };
+}
+
+function buildMultiVariableTextExample(variableNames: string[]): string {
+  return JSON.stringify(
+    Object.fromEntries(
+      variableNames.map((variableName) => [variableName, variableName.toUpperCase()]),
+    ),
+  );
+}
+
+function getMultiVariableTextInputIssue(
+  hint: FieldInputHint,
+  input: Record<string, unknown>,
+  inputIndex: number,
+): string | null {
+  const rawValue = input[hint.name];
+  const variableNames = hint.expectedInput.variableNames ?? [];
+  const example = hint.expectedInput.example ?? '{}';
+
+  if (rawValue === undefined || rawValue === '') {
+    if (!hint.required || variableNames.length === 0) {
+      return null;
+    }
+
+    return buildMultiVariableTextErrorMessage({
+        hint,
+        inputIndex,
+        extra: `Missing variables: ${variableNames.join(', ')}.`,
+        example,
+      });
+  }
+
+  if (typeof rawValue !== 'string') {
+    return buildMultiVariableTextErrorMessage({
+        hint,
+        inputIndex,
+        extra: `Received ${describeValue(rawValue)}.`,
+        example,
+      });
+  }
+
+  let parsedValue: unknown;
+  try {
+    parsedValue = JSON.parse(rawValue);
+  } catch {
+    return buildMultiVariableTextErrorMessage({
+        hint,
+        inputIndex,
+        extra: `Received ${describeValue(rawValue)}.`,
+        example,
+      });
+  }
+
+  if (typeof parsedValue !== 'object' || parsedValue === null || Array.isArray(parsedValue)) {
+    return buildMultiVariableTextErrorMessage({
+        hint,
+        inputIndex,
+        extra: `Received ${describeValue(parsedValue)}.`,
+        example,
+      });
+  }
+
+  if (!hint.required || variableNames.length === 0) {
+    return null;
+  }
+
+  const values = parsedValue as Record<string, unknown>;
+  const missingVariables = variableNames.filter((variableName) => !values[variableName]);
+  if (missingVariables.length > 0) {
+    return buildMultiVariableTextErrorMessage({
+        hint,
+        inputIndex,
+        extra: `Missing variables: ${missingVariables.join(', ')}.`,
+        example,
+      });
+  }
+
+  return null;
+}
+
+function buildMultiVariableTextErrorMessage(args: {
+  hint: FieldInputHint;
+  inputIndex: number;
+  extra: string;
+  example: string;
+}): string {
+  const variableLabel =
+    args.hint.expectedInput.variableNames && args.hint.expectedInput.variableNames.length > 0
+      ? ` with variables: ${args.hint.expectedInput.variableNames.join(', ')}`
+      : '';
+
+  return `Field "${args.hint.name}" (multiVariableText) in input ${args.inputIndex + 1} expects a JSON string object${variableLabel}. Example: ${args.example}. ${args.extra}`;
+}
+
+function describeValue(value: unknown): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    const kind =
+      trimmed.startsWith('{') || trimmed.startsWith('[') ? 'string' : 'plain string';
+    return `${kind} ${JSON.stringify(value)}`;
+  }
+
+  if (value === null) {
+    return 'null';
+  }
+
+  if (Array.isArray(value)) {
+    return 'array';
+  }
+
+  return typeof value;
 }
 
 export function getUniqueStringValues(values: unknown[]): string[] {

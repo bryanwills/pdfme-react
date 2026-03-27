@@ -197,6 +197,43 @@ describe('validate command', () => {
     expect(parsed.inspection.basePdf.kind).toBe('blank');
   });
 
+  it('marks unified jobs invalid when multiVariableText input uses a plain string', () => {
+    const file = join(TMP, 'job-invalid-mvt.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'invoiceMeta',
+              type: 'multiVariableText',
+              text: 'Invoice {inv}',
+              variables: ['inv'],
+              required: true,
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ invoiceMeta: 'INV-001' }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "invoiceMeta" (multiVariableText)'),
+      ]),
+    );
+  });
+
   it('accepts stdin input', () => {
     const result = runCli(['validate', '-', '--json'], {
       input: JSON.stringify({
@@ -251,6 +288,64 @@ describe('validate command', () => {
         paperSize: 'A4 portrait',
       },
     });
+  });
+
+  it('returns field-level input hints for text and multiVariableText', () => {
+    const file = join(TMP, 'input-hints.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+        schemas: [[
+          {
+            name: 'title',
+            type: 'text',
+            position: { x: 20, y: 20 },
+            width: 170,
+            height: 15,
+          },
+          {
+            name: 'invoiceMeta',
+            type: 'multiVariableText',
+            text: 'Invoice {inv}',
+            variables: ['inv'],
+            required: true,
+            position: { x: 20, y: 45 },
+            width: 170,
+            height: 15,
+          },
+        ]],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(0);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.inputHints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'title',
+          type: 'text',
+          pages: [1],
+          expectedInput: {
+            kind: 'string',
+          },
+        }),
+        expect.objectContaining({
+          name: 'invoiceMeta',
+          type: 'multiVariableText',
+          pages: [1],
+          required: true,
+          expectedInput: {
+            kind: 'jsonStringObject',
+            variableNames: ['inv'],
+            example: '{"inv":"INV"}',
+          },
+        }),
+      ]),
+    );
   });
 
   it('rejects unknown flags with structured JSON output', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -69,5 +69,24 @@ describe('pdf2size command', () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.error.code).toBe('EARG');
     expect(parsed.error.message).toContain('No input PDF provided');
+  });
+
+  it('supports verbose output without polluting JSON stdout', async () => {
+    const pdfPath = join(TMP, 'verbose-sample.pdf');
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.addPage([595.28, 841.89]);
+    writeFileSync(pdfPath, await pdfDoc.save());
+
+    const result = spawnSync('node', [CLI, 'pdf2size', pdfPath, '-v', '--json'], {
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.pages).toHaveLength(1);
+    expect(result.stderr).toContain(`Input PDF: ${pdfPath}`);
+    expect(result.stderr).toContain('Total pages: 1');
   });
 });

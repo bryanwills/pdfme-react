@@ -11,6 +11,7 @@ import {
   printJson,
   runWithContract,
 } from '../contract.js';
+import { validateInputContracts } from '../diagnostics.js';
 import {
   ensureSafeDefaultOutputPath,
   getImageOutputPaths,
@@ -121,6 +122,8 @@ export default defineCommand({
           cause: error,
         });
       }
+
+      validateInputContracts(template as unknown as Record<string, unknown>, inputs);
 
       if (args.verbose) {
         console.error(`Template: ${template.schemas?.length ?? 0} page(s)`);

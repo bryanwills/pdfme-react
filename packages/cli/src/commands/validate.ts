@@ -2,6 +2,8 @@ import { defineCommand } from 'citty';
 import { checkGenerateProps } from '@pdfme/common';
 import { assertNoUnknownFlags, printJson, runWithContract } from '../contract.js';
 import {
+  collectInputHints,
+  getInputContractIssues,
   inspectTemplate,
   KNOWN_TEMPLATE_KEYS,
   loadValidationSource,
@@ -62,6 +64,8 @@ export default defineCommand({
         } catch (error) {
           result.errors.unshift(error instanceof Error ? error.message : String(error));
         }
+
+        result.errors.push(...getInputContractIssues(resolvedTemplate, source.inputs ?? []));
       }
 
       const valid = result.errors.length === 0 && (!args.strict || result.warnings.length === 0);
@@ -76,6 +80,7 @@ export default defineCommand({
           errors: result.errors,
           warnings: result.warnings,
           inspection,
+          inputHints: collectInputHints(source.template),
         });
       } else {
         if (result.errors.length === 0 && result.warnings.length === 0) {
