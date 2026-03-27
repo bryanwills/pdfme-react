@@ -3,12 +3,14 @@ import { homedir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 import { getDefaultFont, isUrlSafeToFetch } from '@pdfme/common';
 import type { Font } from '@pdfme/common';
-import { fail } from './contract.js';
+import { CliError, fail } from './contract.js';
 
 const CACHE_DIR = join(homedir(), '.pdfme', 'fonts');
 const NOTO_SANS_JP_URL =
   'https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf';
 export const NOTO_CACHE_FILE = join(CACHE_DIR, 'NotoSansJP-Regular.ttf');
+const REMOTE_FONT_TIMEOUT_MS = 15000;
+const MAX_REMOTE_FONT_BYTES = 32 * 1024 * 1024; // 32 MiB
 
 export type ExplicitFontSourceKind = 'localPath' | 'url' | 'dataUri' | 'inlineBytes' | 'invalid';
 export type ExplicitFontRemoteProvider = 'genericPublic' | 'googleFontsAsset' | 'googleFontsStylesheet';
@@ -126,10 +128,10 @@ export function analyzeExplicitFontRecord(
   return { sources, issues, warnings };
 }
 
-export function normalizeExplicitFontOption(
+export async function normalizeExplicitFontOption(
   jobFont: unknown,
   templateDir?: string,
-): Font | undefined {
+): Promise<Font | undefined> {
   if (jobFont === undefined) {
     return undefined;
   }
@@ -145,7 +147,7 @@ export function normalizeExplicitFontOption(
   const fontRecord = jobFont as Record<string, unknown>;
 
   for (const fontName of Object.keys(fontRecord).sort()) {
-    normalized[fontName] = normalizeExplicitFontSource(fontName, fontRecord[fontName], templateDir);
+    normalized[fontName] = await normalizeExplicitFontSource(fontName, fontRecord[fontName], templateDir);
   }
 
   return normalized;
@@ -374,11 +376,11 @@ function analyzeDataUriFontSource(
   };
 }
 
-function normalizeExplicitFontSource(
+async function normalizeExplicitFontSource(
   fontName: string,
   value: unknown,
   templateDir?: string,
-): Font[string] {
+): Promise<Font[string]> {
   const analysis = analyzeExplicitFontSource(fontName, value, templateDir);
 
   for (const issue of analysis.issues) {
@@ -402,9 +404,15 @@ function normalizeExplicitFontSource(
     };
   }
 
+  if (analysis.source.kind === 'url') {
+    return {
+      ...record,
+      data: await fetchRemoteFontSource(analysis.source),
+    };
+  }
+
   if (
-    analysis.source.kind === 'url'
-    || analysis.source.kind === 'dataUri'
+    analysis.source.kind === 'dataUri'
     || analysis.source.kind === 'inlineBytes'
   ) {
     const normalizedData =
@@ -423,6 +431,104 @@ function normalizeExplicitFontSource(
     code: 'EARG',
     exitCode: 1,
   });
+}
+
+async function fetchRemoteFontSource(
+  source: ExplicitFontSourceDiagnosis,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const url = source.url!;
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_FONT_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      failRemoteFontFetch(source, `Failed to fetch remote font data from ${url}. HTTP ${response.status}`);
+    }
+
+    const contentLengthHeader = response.headers.get('content-length');
+    const declaredLength = contentLengthHeader ? Number(contentLengthHeader) : Number.NaN;
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_REMOTE_FONT_BYTES) {
+      failRemoteFontFetch(
+        source,
+        `Remote font data from ${url} exceeds the ${MAX_REMOTE_FONT_BYTES}-byte safety limit.`,
+      );
+    }
+
+    const buffer = await readResponseBodyWithLimit(response, source);
+    return buffer;
+  } catch (error) {
+    if (error instanceof CliError) {
+      throw error;
+    }
+
+    failRemoteFontFetch(
+      source,
+      `Failed to fetch remote font data from ${url}. ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function failRemoteFontFetch(source: ExplicitFontSourceDiagnosis, message: string): never {
+  fail(message, {
+    code: 'EFONT',
+    exitCode: 2,
+    details: {
+      fontName: source.fontName,
+      url: source.url,
+      provider: source.provider,
+      timeoutMs: REMOTE_FONT_TIMEOUT_MS,
+      maxBytes: MAX_REMOTE_FONT_BYTES,
+    },
+  });
+}
+
+async function readResponseBodyWithLimit(
+  response: Response,
+  source: ExplicitFontSourceDiagnosis,
+): Promise<Uint8Array<ArrayBuffer>> {
+  if (!response.body) {
+    const buffer = new Uint8Array(await response.arrayBuffer()) as Uint8Array<ArrayBuffer>;
+    if (buffer.byteLength > MAX_REMOTE_FONT_BYTES) {
+      failRemoteFontFetch(
+        source,
+        `Remote font data from ${source.url} exceeds the ${MAX_REMOTE_FONT_BYTES}-byte safety limit.`,
+      );
+    }
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    if (!value) {
+      continue;
+    }
+
+    total += value.byteLength;
+    if (total > MAX_REMOTE_FONT_BYTES) {
+      failRemoteFontFetch(
+        source,
+        `Remote font data from ${source.url} exceeds the ${MAX_REMOTE_FONT_BYTES}-byte safety limit.`,
+      );
+    }
+
+    chunks.push(value);
+  }
+
+  const merged = new Uint8Array(total) as Uint8Array<ArrayBuffer>;
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return merged;
 }
 
 function tryParseUrl(value: string): URL | null {

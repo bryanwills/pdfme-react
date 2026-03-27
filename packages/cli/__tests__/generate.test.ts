@@ -8,6 +8,7 @@ import { PDFDocument } from '@pdfme/pdf-lib';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, '..', 'dist', 'index.js');
 const OFFLINE_PRELOAD = pathToFileURL(join(__dirname, 'fixtures', 'offline-fetch-loader.mjs')).href;
+const FAILING_PRELOAD = pathToFileURL(join(__dirname, 'fixtures', 'failing-fetch-loader.mjs')).href;
 const FIXTURE_PRELOAD = pathToFileURL(join(__dirname, 'fixtures', 'fetch-fixture-loader.mjs')).href;
 const TMP = join(__dirname, '..', '.test-tmp-generate');
 const ASSETS_DIR = resolve(__dirname, '..', '..', '..', 'playground', 'public', 'template-assets');
@@ -366,6 +367,219 @@ describe('generate command', () => {
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
     expect(parsed.pdf).toBe(outputPath);
+  });
+
+  it('returns structured EFONT when a remote font fetch fails without network access', () => {
+    const workDir = join(TMP, 'options-font-url-network-failure');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.example.com/network-error.ttf',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(
+      ['generate', join(workDir, 'job.json'), '-o', join(workDir, 'out.pdf'), '--json'],
+      {
+        preload: FAILING_PRELOAD,
+      },
+    );
+
+    expect(result.exitCode).toBe(2);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EFONT');
+    expect(parsed.error.message).toContain('Failed to fetch remote font data');
+    expect(parsed.error.message).toContain('https://fonts.example.com/network-error.ttf');
+    expect(parsed.error.details).toMatchObject({
+      fontName: 'PinyonScript',
+      url: 'https://fonts.example.com/network-error.ttf',
+      provider: 'genericPublic',
+    });
+    expect(parsed.error.details.timeoutMs).toBe(15000);
+    expect(parsed.error.details.maxBytes).toBe(32 * 1024 * 1024);
+  });
+
+  it('returns structured EFONT when a remote font URL responds with a non-ok status', () => {
+    const workDir = join(TMP, 'options-font-url-http-503');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.example.com/http-503.ttf',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(
+      ['generate', join(workDir, 'job.json'), '-o', join(workDir, 'out.pdf'), '--json'],
+      {
+        preload: FAILING_PRELOAD,
+      },
+    );
+
+    expect(result.exitCode).toBe(2);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EFONT');
+    expect(parsed.error.message).toContain('Failed to fetch remote font data');
+    expect(parsed.error.message).toContain('https://fonts.example.com/http-503.ttf');
+    expect(parsed.error.message).toContain('HTTP 503');
+    expect(parsed.error.details).toMatchObject({
+      fontName: 'PinyonScript',
+      url: 'https://fonts.example.com/http-503.ttf',
+      provider: 'genericPublic',
+    });
+    expect(parsed.error.details.timeoutMs).toBe(15000);
+    expect(parsed.error.details.maxBytes).toBe(32 * 1024 * 1024);
+  });
+
+  it('returns structured EFONT when a remote font declares an oversized payload', () => {
+    const workDir = join(TMP, 'options-font-url-oversized');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.example.com/oversized.ttf',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(
+      ['generate', join(workDir, 'job.json'), '-o', join(workDir, 'out.pdf'), '--json'],
+      {
+        preload: FAILING_PRELOAD,
+      },
+    );
+
+    expect(result.exitCode).toBe(2);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EFONT');
+    expect(parsed.error.message).toContain('exceeds the 33554432-byte safety limit');
+    expect(parsed.error.details).toMatchObject({
+      fontName: 'PinyonScript',
+      url: 'https://fonts.example.com/oversized.ttf',
+      provider: 'genericPublic',
+    });
+    expect(parsed.error.details.maxBytes).toBe(32 * 1024 * 1024);
+  });
+
+  it('returns structured EFONT when a remote font stream exceeds the safety limit without content-length', () => {
+    const workDir = join(TMP, 'options-font-url-oversized-stream');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'title',
+              type: 'text',
+              fontName: 'PinyonScript',
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ title: 'Hello' }],
+        options: {
+          font: {
+            PinyonScript: {
+              data: 'https://fonts.example.com/oversized-stream.ttf',
+              subset: true,
+            },
+          },
+        },
+      }),
+    );
+
+    const result = runCli(
+      ['generate', join(workDir, 'job.json'), '-o', join(workDir, 'out.pdf'), '--json'],
+      {
+        preload: FAILING_PRELOAD,
+      },
+    );
+
+    expect(result.exitCode).toBe(2);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EFONT');
+    expect(parsed.error.message).toContain('exceeds the 33554432-byte safety limit');
+    expect(parsed.error.details).toMatchObject({
+      fontName: 'PinyonScript',
+      url: 'https://fonts.example.com/oversized-stream.ttf',
+      provider: 'genericPublic',
+    });
+    expect(parsed.error.details.maxBytes).toBe(32 * 1024 * 1024);
   });
 
   it('returns structured EUNSUPPORTED for Google Fonts stylesheet API URLs', () => {

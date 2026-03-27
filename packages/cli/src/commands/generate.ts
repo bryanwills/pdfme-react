@@ -109,7 +109,7 @@ export default defineCommand({
         hasExplicitFontConfig: hasExplicitFontEntries(jobOptions.font),
       });
       const mergedFontConfig = mergeFontConfig(jobOptions.font, resolvedFont);
-      const font = normalizeExplicitFontOption(mergedFontConfig, templateDir) ?? resolvedFont;
+      const font = (await normalizeExplicitFontOption(mergedFontConfig, templateDir)) ?? resolvedFont;
       const generateOptions = { ...jobOptions, font };
 
       try {
