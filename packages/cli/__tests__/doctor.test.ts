@@ -134,7 +134,7 @@ describe('doctor command', () => {
     expect(parsed.issues.some((issue: string) => issue.includes('Base PDF file not found'))).toBe(true);
   });
 
-  it('returns field-level input hints for date/time, select, checkbox, radioGroup, and multiVariableText discovery', () => {
+  it('returns field-level input hints for table, date/time, select, checkbox, radioGroup, and multiVariableText discovery', () => {
     const file = join(TMP, 'doctor-input-hints.json');
     writeFileSync(
       file,
@@ -174,10 +174,19 @@ describe('doctor command', () => {
             height: 10,
           },
           {
+            name: 'lineItems',
+            type: 'table',
+            head: ['Item', 'Qty', 'Price'],
+            headWidthPercentages: [50, 20, 30],
+            position: { x: 20, y: 105 },
+            width: 120,
+            height: 20,
+          },
+          {
             name: 'dueDate',
             type: 'date',
             format: 'dd/MM/yyyy',
-            position: { x: 20, y: 105 },
+            position: { x: 20, y: 135 },
             width: 30,
             height: 10,
           },
@@ -185,7 +194,7 @@ describe('doctor command', () => {
             name: 'appointmentTime',
             type: 'time',
             format: 'HH:mm',
-            position: { x: 55, y: 105 },
+            position: { x: 55, y: 135 },
             width: 20,
             height: 10,
           },
@@ -193,7 +202,7 @@ describe('doctor command', () => {
             name: 'publishedAt',
             type: 'dateTime',
             format: 'dd/MM/yyyy HH:mm',
-            position: { x: 80, y: 105 },
+            position: { x: 80, y: 135 },
             width: 50,
             height: 10,
           },
@@ -201,7 +210,7 @@ describe('doctor command', () => {
             name: 'choiceA',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 20, y: 115 },
+            position: { x: 20, y: 145 },
             width: 10,
             height: 10,
           },
@@ -209,7 +218,7 @@ describe('doctor command', () => {
             name: 'choiceB',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 40, y: 115 },
+            position: { x: 40, y: 145 },
             width: 10,
             height: 10,
           },
@@ -258,6 +267,17 @@ describe('doctor command', () => {
             kind: 'enumString',
             allowedValues: ['false', 'true'],
             example: 'true',
+          },
+        }),
+        expect.objectContaining({
+          name: 'lineItems',
+          type: 'table',
+          expectedInput: {
+            kind: 'stringMatrix',
+            columnCount: 3,
+            columnHeaders: ['Item', 'Qty', 'Price'],
+            example: [['Item value', 'Qty value', 'Price value']],
+            acceptsJsonString: true,
           },
         }),
         expect.objectContaining({
@@ -377,6 +397,74 @@ describe('doctor command', () => {
     expect(parsed.issues).toEqual(
       expect.arrayContaining([
         expect.stringContaining('expects one of: "false", "true"'),
+      ]),
+    );
+  });
+
+  it('marks unified jobs unhealthy when table input contains a non-string cell', () => {
+    const file = join(TMP, 'doctor-invalid-table-job.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'lineItems',
+              type: 'table',
+              head: ['Item', 'Qty'],
+              headWidthPercentages: [70, 30],
+              tableStyles: { borderWidth: 0.3, borderColor: '#000000' },
+              headStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#ffffff',
+                backgroundColor: '#2980ba',
+                borderColor: '',
+                borderWidth: { top: 0, right: 0, bottom: 0, left: 0 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              bodyStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#000000',
+                backgroundColor: '',
+                alternateBackgroundColor: '#f5f5f5',
+                borderColor: '#888888',
+                borderWidth: { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              columnStyles: {},
+              position: { x: 20, y: 20 },
+              width: 120,
+              height: 20,
+            },
+          ]],
+        },
+        inputs: [{ lineItems: [['Paper', 2]] }],
+      }),
+    );
+
+    const result = runCli(['doctor', file, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "lineItems" (table)'),
+      ]),
+    );
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Cell [1, 2] must be a string. Received number 2.'),
       ]),
     );
   });

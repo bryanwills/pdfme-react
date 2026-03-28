@@ -4,7 +4,7 @@ Last updated: 2026-03-28 JST
 
 Latest committed checkpoint:
 
-- `f01f9394` `docs(plan): define date input hint boundary`
+- `e9456fcf` `docs(plan): define remaining input hint boundary`
 
 ## Purpose
 
@@ -67,7 +67,8 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - `date` / `time` / `dateTime` は hint 上で `format` と `canonicalFormat` を併記する
 - date 系の `example` は current CLI が期待する canonical stored content を返す
 - `schema.format` / `locale` は表示 contract として surface に出すが、current slice では strict validation までは行わない
-- 次の候補は `table` だが、runtime が `string[][]` と JSON string の両方を受けるため、canonical CLI shape を先に決める
+- `table` は canonical input を `string[][]` の nested JSON value として扱う
+- `table` は `columnCount` / `columnHeaders` を hint に含め、JSON string は compatibility path としてのみ受ける
 - `image` / `signature` は asset-like な data URL string のため、current slice では generic string のままにする
 - `svg` は markup string だが sanitization と validity 判定が絡むため、current slice では generic string のままにする
 - barcode 系は type ごとに validation rule が大きく違うため、current slice では generic string のままにする
@@ -85,7 +86,6 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - `doctor.validation.*` の nested legacy count をどこまで残すか
 - `inputHints` を広げる対象はどこまでにするか
 - date 系を strict validate するなら display format と canonical stored content をどう切り分けるか
-- `table` を広げるなら canonical input を nested JSON value にするか JSON string にするか
 - asset-like input (`image` / `signature` / `svg`) を hint 化するなら content kind だけ出すか sample まで出すか
 - barcode 系を hint 化するなら regex 文字列を返すか human description に留めるか
 - onboarding の主役を `examples` 起点にするか、`basePdf` overlay 起点にするか

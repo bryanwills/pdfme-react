@@ -323,6 +323,78 @@ describe('generate command', () => {
     expect(parsed.error.message).toContain('Received plain string "INV-001"');
   });
 
+  it('returns structured EVALIDATE with table input guidance for plain strings', () => {
+    const workDir = join(TMP, 'table-plain-string');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'lineItems',
+              type: 'table',
+              head: ['Item', 'Qty'],
+              headWidthPercentages: [70, 30],
+              tableStyles: { borderWidth: 0.3, borderColor: '#000000' },
+              headStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#ffffff',
+                backgroundColor: '#2980ba',
+                borderColor: '',
+                borderWidth: { top: 0, right: 0, bottom: 0, left: 0 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              bodyStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#000000',
+                backgroundColor: '',
+                alternateBackgroundColor: '#f5f5f5',
+                borderColor: '#888888',
+                borderWidth: { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              columnStyles: {},
+              position: { x: 20, y: 20 },
+              width: 120,
+              height: 20,
+            },
+          ]],
+        },
+        inputs: [{ lineItems: 'Paper x2' }],
+      }),
+    );
+
+    const result = runCli([
+      'generate',
+      join(workDir, 'job.json'),
+      '-o',
+      join(workDir, 'out.pdf'),
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EVALIDATE');
+    expect(parsed.error.message).toContain('Field "lineItems" (table)');
+    expect(parsed.error.message).toContain('expects a JSON array of string arrays with 2 cells per row');
+    expect(parsed.error.message).toContain('Column headers: Item, Qty.');
+    expect(parsed.error.message).toContain('Example: [["Item value","Qty value"]]');
+    expect(parsed.error.message).toContain('JSON string input is also accepted for compatibility.');
+    expect(parsed.error.message).toContain('Received plain string "Paper x2"');
+  });
+
   it('returns structured EVALIDATE when select input is outside schema options', () => {
     const workDir = join(TMP, 'invalid-select-option');
     mkdirSync(workDir, { recursive: true });

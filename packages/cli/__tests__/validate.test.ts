@@ -263,6 +263,64 @@ describe('validate command', () => {
     );
   });
 
+  it('accepts table input as a nested JSON array', () => {
+    const file = join(TMP, 'job-valid-table-array.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'lineItems',
+              type: 'table',
+              head: ['Item', 'Qty'],
+              headWidthPercentages: [70, 30],
+              tableStyles: { borderWidth: 0.3, borderColor: '#000000' },
+              headStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#ffffff',
+                backgroundColor: '#2980ba',
+                borderColor: '',
+                borderWidth: { top: 0, right: 0, bottom: 0, left: 0 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              bodyStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#000000',
+                backgroundColor: '',
+                alternateBackgroundColor: '#f5f5f5',
+                borderColor: '#888888',
+                borderWidth: { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              columnStyles: {},
+              position: { x: 20, y: 20 },
+              width: 120,
+              height: 20,
+            },
+          ]],
+        },
+        inputs: [{ lineItems: [['Paper', '2'], ['Pen', '1']] }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(0);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(true);
+  });
+
   it('accepts stdin input', () => {
     const result = runCli(['validate', '-', '--json'], {
       input: JSON.stringify({
@@ -319,7 +377,7 @@ describe('validate command', () => {
     });
   });
 
-  it('returns field-level input hints for text, date/time, select, checkbox, radioGroup, and multiVariableText', () => {
+  it('returns field-level input hints for text, table, date/time, select, checkbox, radioGroup, and multiVariableText', () => {
     const file = join(TMP, 'input-hints.json');
     writeFileSync(
       file,
@@ -359,10 +417,19 @@ describe('validate command', () => {
             height: 10,
           },
           {
+            name: 'lineItems',
+            type: 'table',
+            head: ['Item', 'Qty', 'Price'],
+            headWidthPercentages: [50, 20, 30],
+            position: { x: 20, y: 105 },
+            width: 120,
+            height: 20,
+          },
+          {
             name: 'dueDate',
             type: 'date',
             format: 'dd/MM/yyyy',
-            position: { x: 20, y: 105 },
+            position: { x: 20, y: 135 },
             width: 30,
             height: 10,
           },
@@ -370,7 +437,7 @@ describe('validate command', () => {
             name: 'appointmentTime',
             type: 'time',
             format: 'HH:mm',
-            position: { x: 55, y: 105 },
+            position: { x: 55, y: 135 },
             width: 20,
             height: 10,
           },
@@ -378,7 +445,7 @@ describe('validate command', () => {
             name: 'publishedAt',
             type: 'dateTime',
             format: 'dd/MM/yyyy HH:mm',
-            position: { x: 80, y: 105 },
+            position: { x: 80, y: 135 },
             width: 50,
             height: 10,
           },
@@ -386,7 +453,7 @@ describe('validate command', () => {
             name: 'choiceA',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 20, y: 115 },
+            position: { x: 20, y: 145 },
             width: 10,
             height: 10,
           },
@@ -394,7 +461,7 @@ describe('validate command', () => {
             name: 'choiceB',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 40, y: 115 },
+            position: { x: 40, y: 145 },
             width: 10,
             height: 10,
           },
@@ -449,6 +516,18 @@ describe('validate command', () => {
           },
         }),
         expect.objectContaining({
+          name: 'lineItems',
+          type: 'table',
+          pages: [1],
+          expectedInput: {
+            kind: 'stringMatrix',
+            columnCount: 3,
+            columnHeaders: ['Item', 'Qty', 'Price'],
+            example: [['Item value', 'Qty value', 'Price value']],
+            acceptsJsonString: true,
+          },
+        }),
+        expect.objectContaining({
           name: 'dueDate',
           type: 'date',
           pages: [1],
@@ -493,6 +572,79 @@ describe('validate command', () => {
             groupMemberNames: ['choiceA', 'choiceB'],
           },
         }),
+      ]),
+    );
+  });
+
+  it('marks unified jobs invalid when table input rows do not match the expected column count', () => {
+    const file = join(TMP, 'job-invalid-table.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'lineItems',
+              type: 'table',
+              head: ['Item', 'Qty'],
+              headWidthPercentages: [70, 30],
+              tableStyles: { borderWidth: 0.3, borderColor: '#000000' },
+              headStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#ffffff',
+                backgroundColor: '#2980ba',
+                borderColor: '',
+                borderWidth: { top: 0, right: 0, bottom: 0, left: 0 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              bodyStyles: {
+                fontSize: 10,
+                lineHeight: 1,
+                characterSpacing: 0,
+                fontColor: '#000000',
+                backgroundColor: '',
+                alternateBackgroundColor: '#f5f5f5',
+                borderColor: '#888888',
+                borderWidth: { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1 },
+                padding: { top: 5, right: 5, bottom: 5, left: 5 },
+                alignment: 'left',
+                verticalAlignment: 'middle',
+              },
+              columnStyles: {},
+              position: { x: 20, y: 20 },
+              width: 120,
+              height: 20,
+            },
+          ]],
+        },
+        inputs: [{ lineItems: [['Paper']] }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "lineItems" (table)'),
+      ]),
+    );
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects a JSON array of string arrays with 2 cells per row'),
+      ]),
+    );
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Row 1 must contain 2 cells. Received 1.'),
       ]),
     );
   });

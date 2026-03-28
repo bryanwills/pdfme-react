@@ -34,14 +34,17 @@ export interface FieldInputHint {
   pages: number[];
   required: boolean;
   expectedInput: {
-    kind: 'string' | 'jsonStringObject' | 'enumString';
+    kind: 'string' | 'jsonStringObject' | 'enumString' | 'stringMatrix';
     variableNames?: string[];
     allowedValues?: string[];
-    example?: string;
+    example?: string | string[][];
     format?: string;
     canonicalFormat?: string;
     groupName?: string;
     groupMemberNames?: string[];
+    columnCount?: number;
+    columnHeaders?: string[];
+    acceptsJsonString?: boolean;
   };
 }
 
@@ -211,13 +214,16 @@ export function collectInputHints(template: Record<string, unknown>): FieldInput
         hint.name,
         hint.type,
         hint.expectedInput.kind,
-        hint.expectedInput.example ?? '',
+        JSON.stringify(hint.expectedInput.example ?? null),
         hint.expectedInput.format ?? '',
         hint.expectedInput.canonicalFormat ?? '',
         (hint.expectedInput.variableNames ?? []).join('\u0000'),
         (hint.expectedInput.allowedValues ?? []).join('\u0000'),
         hint.expectedInput.groupName ?? '',
         (hint.expectedInput.groupMemberNames ?? []).join('\u0000'),
+        String(hint.expectedInput.columnCount ?? ''),
+        (hint.expectedInput.columnHeaders ?? []).join('\u0000'),
+        hint.expectedInput.acceptsJsonString === true ? '1' : '0',
       ].join('\u0001');
       const existing = hintMap.get(key);
 
@@ -437,6 +443,25 @@ function buildFieldInputHint(
     }
   }
 
+  if (type === 'table') {
+    const columnHeaders = getOrderedStringValues(Array.isArray(schema.head) ? schema.head : []);
+    const columnCount = getTableColumnCount(schema, columnHeaders);
+
+    return {
+      name: schema.name as string,
+      type,
+      pages: [page],
+      required: schema.required === true,
+      expectedInput: {
+        kind: 'stringMatrix',
+        ...(columnCount > 0 ? { columnCount } : {}),
+        ...(columnHeaders.length > 0 ? { columnHeaders } : {}),
+        example: buildTableInputExample(columnHeaders, columnCount),
+        acceptsJsonString: true,
+      },
+    };
+  }
+
   if (type === 'date' || type === 'time' || type === 'dateTime') {
     const canonicalFormat = getCanonicalDateStoredFormat(type);
 
@@ -471,6 +496,32 @@ function buildMultiVariableTextExample(variableNames: string[]): string {
       variableNames.map((variableName) => [variableName, variableName.toUpperCase()]),
     ),
   );
+}
+
+function buildTableInputExample(columnHeaders: string[], columnCount: number): string[][] {
+  if (columnCount <= 0) {
+    return [];
+  }
+
+  return [
+    Array.from({ length: columnCount }, (_, index) => {
+      const header = columnHeaders[index];
+      return header ? `${header} value` : `cell-${index + 1}`;
+    }),
+  ];
+}
+
+function getTableColumnCount(schema: Record<string, unknown>, columnHeaders: string[]): number {
+  if (columnHeaders.length > 0) {
+    return columnHeaders.length;
+  }
+
+  if (Array.isArray(schema.headWidthPercentages) && schema.headWidthPercentages.length > 0) {
+    return schema.headWidthPercentages.length;
+  }
+
+  const parsedContent = parseTableStringMatrix(schema.content);
+  return parsedContent?.[0]?.length ?? 0;
 }
 
 function getCanonicalDateStoredFormat(type: 'date' | 'time' | 'dateTime'): string {
@@ -515,6 +566,10 @@ function getInputContractIssue(
 
   if (hint.expectedInput.kind === 'enumString') {
     return getEnumStringInputIssue(hint, input, inputIndex);
+  }
+
+  if (hint.expectedInput.kind === 'stringMatrix') {
+    return getStringMatrixInputIssue(hint, input, inputIndex);
   }
 
   return null;
@@ -674,11 +729,91 @@ function getEnumStringInputIssue(
   });
 }
 
+function getStringMatrixInputIssue(
+  hint: FieldInputHint,
+  input: Record<string, unknown>,
+  inputIndex: number,
+): string | null {
+  const rawValue = input[hint.name];
+  const example = hint.expectedInput.example;
+
+  if (rawValue === undefined || rawValue === '') {
+    return null;
+  }
+
+  const parsedValue =
+    typeof rawValue === 'string' && hint.expectedInput.acceptsJsonString === true
+      ? parseTableStringMatrix(rawValue) ?? rawValue
+      : rawValue;
+
+  const issue = getStringMatrixShapeIssue(parsedValue, hint.expectedInput.columnCount);
+  if (!issue) {
+    return null;
+  }
+
+  return buildStringMatrixErrorMessage({
+    hint,
+    inputIndex,
+    extra: issue,
+    example,
+  });
+}
+
+function getStringMatrixShapeIssue(value: unknown, expectedColumnCount?: number): string | null {
+  if (!Array.isArray(value)) {
+    return `Received ${describeValue(value)}.`;
+  }
+
+  const columnCount = expectedColumnCount ?? getFirstArrayLength(value);
+
+  for (let rowIndex = 0; rowIndex < value.length; rowIndex++) {
+    const row = value[rowIndex];
+    if (!Array.isArray(row)) {
+      return `Row ${rowIndex + 1} must be an array of strings. Received ${describeValue(row)}.`;
+    }
+
+    if (columnCount > 0 && row.length !== columnCount) {
+      return `Row ${rowIndex + 1} must contain ${columnCount} cells. Received ${row.length}.`;
+    }
+
+    for (let colIndex = 0; colIndex < row.length; colIndex++) {
+      const cell = row[colIndex];
+      if (typeof cell !== 'string') {
+        return `Cell [${rowIndex + 1}, ${colIndex + 1}] must be a string. Received ${describeValue(cell)}.`;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getFirstArrayLength(rows: unknown[]): number {
+  for (const row of rows) {
+    if (Array.isArray(row)) {
+      return row.length;
+    }
+  }
+
+  return 0;
+}
+
+function parseTableStringMatrix(rawValue: unknown): string[][] | null {
+  if (typeof rawValue !== 'string') {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawValue) as string[][];
+  } catch {
+    return null;
+  }
+}
+
 function buildMultiVariableTextErrorMessage(args: {
   hint: FieldInputHint;
   inputIndex: number;
   extra: string;
-  example: string;
+  example: string | string[][];
 }): string {
   const variableLabel =
     args.hint.expectedInput.variableNames && args.hint.expectedInput.variableNames.length > 0
@@ -692,7 +827,7 @@ function buildEnumStringErrorMessage(args: {
   hint: FieldInputHint;
   inputIndex: number;
   extra: string;
-  example?: string;
+  example?: string | string[][];
 }): string {
   const allowedValues = (args.hint.expectedInput.allowedValues ?? []).map((value) => JSON.stringify(value));
   const allowedLabel =
@@ -701,6 +836,28 @@ function buildEnumStringErrorMessage(args: {
     args.example !== undefined ? ` Example: ${JSON.stringify(args.example)}.` : '';
 
   return `Field "${args.hint.name}" (${args.hint.type}) in input ${args.inputIndex + 1} expects${allowedLabel}.${exampleLabel} ${args.extra}`.trim();
+}
+
+function buildStringMatrixErrorMessage(args: {
+  hint: FieldInputHint;
+  inputIndex: number;
+  extra: string;
+  example?: string | string[][];
+}): string {
+  const columnCount = args.hint.expectedInput.columnCount;
+  const columnHeaders = args.hint.expectedInput.columnHeaders ?? [];
+  const columnLabel =
+    typeof columnCount === 'number' && columnCount > 0 ? ` with ${columnCount} cells per row` : '';
+  const headerLabel =
+    columnHeaders.length > 0 ? ` Column headers: ${columnHeaders.join(', ')}.` : '';
+  const exampleLabel =
+    args.example !== undefined ? ` Example: ${JSON.stringify(args.example)}.` : '';
+  const compatibilityLabel =
+    args.hint.expectedInput.acceptsJsonString === true
+      ? ' JSON string input is also accepted for compatibility.'
+      : '';
+
+  return `Field "${args.hint.name}" (${args.hint.type}) in input ${args.inputIndex + 1} expects a JSON array of string arrays${columnLabel}.${headerLabel}${exampleLabel}${compatibilityLabel} ${args.extra}`.trim();
 }
 
 function buildRadioGroupSelectionErrorMessage(args: {
@@ -728,6 +885,10 @@ function describeValue(value: unknown): string {
     return 'array';
   }
 
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return `${typeof value} ${JSON.stringify(value)}`;
+  }
+
   return typeof value;
 }
 
@@ -741,6 +902,10 @@ function getUniqueOrderedStringValues(values: unknown[]): string[] {
   return [
     ...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0)),
   ];
+}
+
+function getOrderedStringValues(values: unknown[]): string[] {
+  return values.filter((value): value is string => typeof value === 'string' && value.length > 0);
 }
 
 function collectRadioGroupMembers(

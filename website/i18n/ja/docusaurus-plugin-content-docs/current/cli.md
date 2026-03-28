@@ -80,11 +80,11 @@ pdfme generate -t template.json -i inputs.json -o out.pdf --image --grid
 - `--verbose` の補足情報は stderr に出る
 - failure は `ok: false` の structured error を返す
 - `doctor` は command 自体が動けば `ok: true` を返し、blocking issue の有無は `healthy` で表す
-- `validate --json` / `doctor --json` は field-level の `inputHints` も返すため、plain string、`format` metadata を持つ date/time string、制約付き string enum、group-aware enum、JSON string object のどれを期待する field かを事前判定できる
+- `validate --json` / `doctor --json` は field-level の `inputHints` も返すため、plain string、`string[][]` の table payload、`format` metadata を持つ date/time string、制約付き string enum、group-aware enum、JSON string object のどれを期待する field かを事前判定できる
 
 そのため、CLI は automation、agent、CI gate に向いています。
 
-たとえば date 系では `format` と `canonicalFormat` が、`select` / `checkbox` では enum 形式の `allowedValues` が、`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が、`multiVariableText` では expected variable names と sample JSON string payload が返ります。
+たとえば table では `columnCount` / `columnHeaders` / `acceptsJsonString` が、date 系では `format` と `canonicalFormat` が、`select` / `checkbox` では enum 形式の `allowedValues` が、`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が、`multiVariableText` では expected variable names と sample JSON string payload が返ります。
 
 ## Font Contract
 
