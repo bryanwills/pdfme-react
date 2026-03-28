@@ -4,7 +4,7 @@ Last updated: 2026-03-28 JST
 
 Latest committed checkpoint:
 
-- `dc129c6a` `feat(cli): add table input contract hints`
+- `2a52ae39` `feat(cli): hint asset input content kinds`
 
 ## Purpose
 
@@ -71,7 +71,8 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - `table` は `columnCount` / `columnHeaders` を hint に含め、JSON string は compatibility path としてのみ受ける
 - `image` / `signature` / `svg` は `kind = "string"` のまま `contentKind` だけ返す
 - asset-like input は current slice では sample payload や strict validation までは行わない
-- barcode 系は type ごとに validation rule が大きく違うため、current slice では generic string のままにする
+- barcode 系は `kind = "string"` のまま `contentKind = "barcodeText"` と human-readable な `rule` を返す
+- barcode 系は current slice では machine-readable regex / checksum metadata までは返さない
 - 広げるなら、型ごとの input contract を先に整理する
 - generic すぎる hint で誤解を増やさない
 
@@ -86,7 +87,6 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - `doctor.validation.*` の nested legacy count をどこまで残すか
 - `inputHints` を広げる対象はどこまでにするか
 - date 系を strict validate するなら display format と canonical stored content をどう切り分けるか
-- barcode 系を hint 化するなら regex 文字列を返すか human description に留めるか
 - onboarding の主役を `examples` 起点にするか、`basePdf` overlay 起点にするか
 
 ## Explicit Non-Goals For The Next Slice

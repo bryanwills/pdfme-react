@@ -41,6 +41,7 @@ export interface FieldInputHint {
     format?: string;
     canonicalFormat?: string;
     contentKind?: string;
+    rule?: string;
     groupName?: string;
     groupMemberNames?: string[];
     columnCount?: number;
@@ -219,6 +220,7 @@ export function collectInputHints(template: Record<string, unknown>): FieldInput
         hint.expectedInput.format ?? '',
         hint.expectedInput.canonicalFormat ?? '',
         hint.expectedInput.contentKind ?? '',
+        hint.expectedInput.rule ?? '',
         (hint.expectedInput.variableNames ?? []).join('\u0000'),
         (hint.expectedInput.allowedValues ?? []).join('\u0000'),
         hint.expectedInput.groupName ?? '',
@@ -445,6 +447,21 @@ function buildFieldInputHint(
     }
   }
 
+  const barcodeRule = getBarcodeRule(type);
+  if (barcodeRule) {
+    return {
+      name: schema.name as string,
+      type,
+      pages: [page],
+      required: schema.required === true,
+      expectedInput: {
+        kind: 'string',
+        contentKind: 'barcodeText',
+        rule: barcodeRule,
+      },
+    };
+  }
+
   const assetContentKind = getAssetContentKind(type);
   if (assetContentKind) {
     return {
@@ -548,6 +565,37 @@ function getAssetContentKind(type: string): string | null {
       return 'signatureImageDataUrl';
     case 'svg':
       return 'svgMarkup';
+    default:
+      return null;
+  }
+}
+
+function getBarcodeRule(type: string): string | null {
+  switch (type) {
+    case 'qrcode':
+      return 'Any non-empty string up to 499 characters.';
+    case 'japanpost':
+      return 'Start with 7 digits, then continue with digits, A-Z, or hyphen (-).';
+    case 'ean13':
+      return '12 or 13 digits; if 13 digits are provided, the final check digit must be valid.';
+    case 'ean8':
+      return '7 or 8 digits; if 8 digits are provided, the final check digit must be valid.';
+    case 'code39':
+      return 'Use uppercase A-Z, digits, spaces, and symbols - . $ / + %.';
+    case 'code128':
+      return 'Text must not contain Kanji, Hiragana, Katakana, or full-width ASCII characters.';
+    case 'nw7':
+      return 'Start and end with A-D; inner characters may be digits or - . $ : / +.';
+    case 'itf14':
+      return '13 or 14 digits; if 14 digits are provided, the final check digit must be valid.';
+    case 'upca':
+      return '11 or 12 digits; if 12 digits are provided, the final check digit must be valid.';
+    case 'upce':
+      return 'Must start with 0 and be 7 or 8 digits total; if 8 digits are provided, the final check digit must be valid.';
+    case 'gs1datamatrix':
+      return 'Include (01) followed by a GTIN of 8, 12, 13, or 14 digits with a valid check digit; total length must be 52 characters or fewer.';
+    case 'pdf417':
+      return 'Any non-empty string up to 1000 characters.';
     default:
       return null;
   }

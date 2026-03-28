@@ -83,11 +83,11 @@ When you pass `--json`:
 - `doctor` returns `ok: true` when the command ran successfully, and uses `healthy` to report whether blocking issues were found
 - scalar page counts use canonical names such as `pageCount`, `templatePageCount`, and `estimatedPageCount`
 - per-page arrays stay under `pages`, with `pageNumber` as the page index field
-- `validate --json` and `doctor --json` return field-level `inputHints`, so automation can tell whether a field expects a plain string, an asset-like string with `contentKind`, a `string[][]` table payload, a date/time string with `format` metadata, a constrained string enum, a group-aware enum, or a JSON string object
+- `validate --json` and `doctor --json` return field-level `inputHints`, so automation can tell whether a field expects a plain string, an asset-like string with `contentKind`, a barcode string with a human-readable `rule`, a `string[][]` table payload, a date/time string with `format` metadata, a constrained string enum, a group-aware enum, or a JSON string object
 
 This makes the CLI suitable for automation, agents, and CI gates.
 
-For example, image/signature/svg fields expose `contentKind`, table fields expose `columnCount`, `columnHeaders`, and `acceptsJsonString`, date fields expose `format` and `canonicalFormat`, `select` and `checkbox` expose enum-style `allowedValues`, `radioGroup` adds `groupName` and `groupMemberNames`, and `multiVariableText` exposes expected variable names and a sample JSON string payload.
+For example, image/signature/svg fields expose `contentKind`, barcode fields expose `contentKind` plus a human-readable `rule`, table fields expose `columnCount`, `columnHeaders`, and `acceptsJsonString`, date fields expose `format` and `canonicalFormat`, `select` and `checkbox` expose enum-style `allowedValues`, `radioGroup` adds `groupName` and `groupMemberNames`, and `multiVariableText` exposes expected variable names and a sample JSON string payload.
 
 ## Font Contract
 

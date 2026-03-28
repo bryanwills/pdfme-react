@@ -377,7 +377,7 @@ describe('validate command', () => {
     });
   });
 
-  it('returns field-level input hints for text, asset-like strings, table, date/time, select, checkbox, radioGroup, and multiVariableText', () => {
+  it('returns field-level input hints for text, asset-like strings, barcode strings, table, date/time, select, checkbox, radioGroup, and multiVariableText', () => {
     const file = join(TMP, 'input-hints.json');
     writeFileSync(
       file,
@@ -438,11 +438,25 @@ describe('validate command', () => {
             height: 20,
           },
           {
+            name: 'orderCode',
+            type: 'qrcode',
+            position: { x: 105, y: 105 },
+            width: 20,
+            height: 20,
+          },
+          {
+            name: 'productEan',
+            type: 'ean13',
+            position: { x: 130, y: 105 },
+            width: 30,
+            height: 20,
+          },
+          {
             name: 'lineItems',
             type: 'table',
             head: ['Item', 'Qty', 'Price'],
             headWidthPercentages: [50, 20, 30],
-            position: { x: 20, y: 135 },
+            position: { x: 20, y: 145 },
             width: 120,
             height: 20,
           },
@@ -450,7 +464,7 @@ describe('validate command', () => {
             name: 'dueDate',
             type: 'date',
             format: 'dd/MM/yyyy',
-            position: { x: 20, y: 165 },
+            position: { x: 20, y: 175 },
             width: 30,
             height: 10,
           },
@@ -458,7 +472,7 @@ describe('validate command', () => {
             name: 'appointmentTime',
             type: 'time',
             format: 'HH:mm',
-            position: { x: 55, y: 165 },
+            position: { x: 55, y: 175 },
             width: 20,
             height: 10,
           },
@@ -466,7 +480,7 @@ describe('validate command', () => {
             name: 'publishedAt',
             type: 'dateTime',
             format: 'dd/MM/yyyy HH:mm',
-            position: { x: 80, y: 165 },
+            position: { x: 80, y: 175 },
             width: 50,
             height: 10,
           },
@@ -474,7 +488,7 @@ describe('validate command', () => {
             name: 'choiceA',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 20, y: 175 },
+            position: { x: 20, y: 185 },
             width: 10,
             height: 10,
           },
@@ -482,7 +496,7 @@ describe('validate command', () => {
             name: 'choiceB',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 40, y: 175 },
+            position: { x: 40, y: 185 },
             width: 10,
             height: 10,
           },
@@ -561,6 +575,26 @@ describe('validate command', () => {
           expectedInput: {
             kind: 'string',
             contentKind: 'svgMarkup',
+          },
+        }),
+        expect.objectContaining({
+          name: 'orderCode',
+          type: 'qrcode',
+          pages: [1],
+          expectedInput: {
+            kind: 'string',
+            contentKind: 'barcodeText',
+            rule: 'Any non-empty string up to 499 characters.',
+          },
+        }),
+        expect.objectContaining({
+          name: 'productEan',
+          type: 'ean13',
+          pages: [1],
+          expectedInput: {
+            kind: 'string',
+            contentKind: 'barcodeText',
+            rule: '12 or 13 digits; if 13 digits are provided, the final check digit must be valid.',
           },
         }),
         expect.objectContaining({
