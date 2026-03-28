@@ -4,7 +4,7 @@ Last updated: 2026-03-28 JST
 
 Latest committed checkpoint:
 
-- `2a52ae39` `feat(cli): hint asset input content kinds`
+- `ac6c0e75` `feat(cli): add barcode input hint rules`
 
 ## Purpose
 
@@ -33,7 +33,7 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 | Build / Test / Typecheck 基盤 | 安定 | v5 開発の前提として維持 |
 | CLI hardening | 完了 | contract-grade machine interface 化は完了 |
 | Operational UX closeout | 完了 | `doctor` を含む closeout は完了 |
-| Post-closeout polish | 進行中 | parity / discoverability / docs を詰める段階 |
+| Post-closeout polish | 進行中 | discoverability first pass は概ね完了、parity / docs を詰める段階 |
 | Rich Text / Markdown Track | 未着手 | CLI polish と分けて扱う |
 
 ## Stable Product Decisions
@@ -57,9 +57,9 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - success payload の breaking normalize と verbose label を first pass の対象にする
 - command ごとの差を「意図した違い」に絞る
 
-### 2. Input Discoverability
+### 2. Input Discoverability Follow-up
 
-`multiVariableText` の first pass の次を判断する。
+first pass の surface は概ね出そろった。次は「どこまで strict にするか」と「どこで止めるか」を整理する。
 
 - `inputHints` を他の特殊入力型まで広げるか決める
 - `radioGroup` は field-local bool ではなく group-aware enum として扱う
@@ -73,7 +73,7 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - asset-like input は current slice では sample payload や strict validation までは行わない
 - barcode 系は `kind = "string"` のまま `contentKind = "barcodeText"` と human-readable な `rule` を返す
 - barcode 系は current slice では machine-readable regex / checksum metadata までは返さない
-- 広げるなら、型ごとの input contract を先に整理する
+- この track の残件は strict validation と docs 整理が中心
 - generic すぎる hint で誤解を増やさない
 
 ### 3. Docs / Onboarding Polish
@@ -85,8 +85,9 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 ## Open Questions
 
 - `doctor.validation.*` の nested legacy count をどこまで残すか
-- `inputHints` を広げる対象はどこまでにするか
 - date 系を strict validate するなら display format と canonical stored content をどう切り分けるか
+- asset-like input (`image` / `signature` / `svg`) を validation まで広げるか、hint-only で止めるか
+- barcode 系を human-readable rule のまま維持するか、machine-readable metadata まで広げるか
 - onboarding の主役を `examples` 起点にするか、`basePdf` overlay 起点にするか
 
 ## Explicit Non-Goals For The Next Slice
@@ -118,5 +119,5 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 ## Notes For Next Turn
 
 - まずこの `PLAN.md` を読む
-- 次の slice は feature 追加ではなく parity / discoverability / docs polish を優先する
+- 次の slice は feature 追加ではなく parity / docs polish を優先する
 - current parity slice では pre-release 前提で canonical field 名へ揃える
