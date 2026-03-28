@@ -1,7 +1,8 @@
 import { defineCommand } from 'citty';
+import { PDFDocument } from '@pdfme/pdf-lib';
 import { generate } from '@pdfme/generator';
 import { pdf2img, pdf2size } from '@pdfme/converter';
-import { checkGenerateProps, isBlankPdf } from '@pdfme/common';
+import { checkGenerateProps } from '@pdfme/common';
 import type { Font, GenerateProps, Template } from '@pdfme/common';
 import {
   assertNoUnknownFlags,
@@ -91,6 +92,8 @@ export default defineCommand({
       });
 
       const template = resolveBasePdf(rawTemplate, args.basePdf, templateDir) as unknown as Template;
+      const mode = args.file ? 'job' : 'template+inputs';
+      const templatePageCount = normalizeSchemaPages(template.schemas).length;
       const jobOptions = normalizeJobOptions(rawJobOptions);
       assertSupportedSchemaTypes(template);
 
@@ -127,12 +130,12 @@ export default defineCommand({
 
       if (args.verbose) {
         console.error(`Input: ${describeGenerateInput(args.file, args.template, args.inputs)}`);
-        console.error(`Mode: ${args.file ? 'job' : 'template+inputs'}`);
-        console.error(`Template pages: ${template.schemas?.length ?? 0}`);
+        console.error(`Mode: ${mode}`);
+        console.error(`Template pages: ${templatePageCount}`);
         console.error(`Inputs: ${inputs.length} set(s)`);
-        console.error(`Output PDF: ${args.output}`);
+        console.error(`Output: ${args.output}`);
         console.error(
-          `Image output: ${
+          `Images: ${
             args.image || args.grid
               ? `enabled (${imageFormat}, scale=${scale}, grid=${args.grid ? `${gridSize}mm` : 'disabled'})`
               : 'disabled'
@@ -151,27 +154,27 @@ export default defineCommand({
         plugins: schemaPlugins as NonNullable<GenerateProps['plugins']>,
       });
 
+      const generatedPdf = await PDFDocument.load(pdf, { updateMetadata: false });
+      const pageCount = generatedPdf.getPageCount();
+
       writeOutput(args.output, pdf);
 
       const result: Record<string, unknown> = {
-        pdf: args.output,
-        size: pdf.byteLength,
+        command: 'generate',
+        mode,
+        templatePageCount,
+        inputCount: inputs.length,
+        pageCount,
+        outputPath: args.output,
+        outputBytes: pdf.byteLength,
       };
 
       if (args.image || args.grid) {
         const images = await pdf2img(pdf, { scale, imageType: imageFormat });
         const imagePaths = getImageOutputPaths(args.output, images.length, imageFormat);
-        result.pages = images.length;
-
-        let pageSizes: Array<{ width: number; height: number }> | null = null;
 
         if (args.grid) {
-          if (isBlankPdf(template.basePdf)) {
-            const bpdf = template.basePdf as { width: number; height: number };
-            pageSizes = images.map(() => ({ width: bpdf.width, height: bpdf.height }));
-          } else {
-            pageSizes = await pdf2size(pdf);
-          }
+          const renderedPageSizes = await pdf2size(pdf);
 
           for (let i = 0; i < images.length; i++) {
             const templateSchemas = template.schemas ?? [];
@@ -184,7 +187,7 @@ export default defineCommand({
               height: number;
             }>;
 
-            const size = pageSizes[i] ?? pageSizes[0] ?? { width: 210, height: 297 };
+            const size = renderedPageSizes[i] ?? renderedPageSizes[0] ?? { width: 210, height: 297 };
 
             const gridImage = await drawGridOnImage(
               images[i],
@@ -202,17 +205,15 @@ export default defineCommand({
           }
         }
 
-        result.images = imagePaths;
-      } else {
-        result.pages = template.schemas?.length ? inputs.length * template.schemas.length : 0;
+        result.imagePaths = imagePaths;
       }
 
       if (args.json) {
         printJson({ ok: true, ...result });
       } else {
-        console.log(`\u2713 PDF: ${args.output} (${formatBytes(pdf.byteLength)})`);
-        if (result.images) {
-          for (const img of result.images as string[]) {
+        console.log(`\u2713 Output: ${args.output} (${formatBytes(pdf.byteLength)})`);
+        if (result.imagePaths) {
+          for (const img of result.imagePaths as string[]) {
             console.log(`\u2713 Image: ${img}`);
           }
         }

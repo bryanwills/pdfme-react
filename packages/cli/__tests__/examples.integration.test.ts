@@ -177,6 +177,7 @@ describe('examples integration smoke', () => {
 
     const examplesPayload = JSON.parse(examplesResult.stdout);
     expect(examplesPayload.ok).toBe(true);
+    expect(examplesPayload.command).toBe('examples');
     expect(examplesPayload.outputPath).toBe(jobPath);
     expect(existsSync(jobPath)).toBe(true);
 
@@ -185,7 +186,8 @@ describe('examples integration smoke', () => {
 
     const payload = JSON.parse(generateResult.stdout);
     expect(payload.ok).toBe(true);
-    expect(payload.pdf).toBe(pdfPath);
+    expect(payload.command).toBe('generate');
+    expect(payload.outputPath).toBe(pdfPath);
     expect(existsSync(pdfPath)).toBe(true);
   });
 
@@ -219,6 +221,9 @@ describe('examples integration smoke', () => {
     expect(result.exitCode).toBe(0);
     const payload = JSON.parse(result.stdout);
     expect(payload.ok).toBe(true);
+    expect(payload.command).toBe('examples');
+    expect(payload.mode).toBe('list');
+    expect(payload.templateCount).toBe(readJson<ExampleManifest>(MANIFEST_PATH).templates.length);
     expect(payload.source).toBe('remote');
     expect(payload.baseUrl).toBe('https://fixtures.example.com/template-assets');
     expect(payload.manifest).toEqual(readJson<ExampleManifest>(MANIFEST_PATH));
@@ -242,6 +247,7 @@ describe('examples integration smoke', () => {
     expect(result.status).toBe(0);
     const payload = JSON.parse(result.stdout);
     expect(payload.ok).toBe(true);
+    expect(payload.command).toBe('examples');
     expect(payload.outputPath).toBe(jobPath);
     expect(result.stderr).toContain('Base URL: https://fixtures.example.com/template-assets');
     expect(result.stderr).toContain('Manifest source: remote');
@@ -271,6 +277,7 @@ describe('examples integration smoke', () => {
 
         const examplePayload = JSON.parse(examplesResult.stdout);
         expect(examplePayload.ok).toBe(true);
+        expect(examplePayload.command).toBe('examples');
         expect(examplePayload.outputPath).toBe(jobPath);
 
         const job = JSON.parse(readFileSync(jobPath, 'utf8'));
@@ -287,7 +294,8 @@ describe('examples integration smoke', () => {
 
         const payload = JSON.parse(generateResult.stdout);
         expect(payload.ok).toBe(true);
-        expect(payload.pdf).toBe(pdfPath);
+        expect(payload.command).toBe('generate');
+        expect(payload.outputPath).toBe(pdfPath);
         expect(existsSync(pdfPath)).toBe(true);
       }
     },

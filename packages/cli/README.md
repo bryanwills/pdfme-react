@@ -127,9 +127,13 @@ pdfme generate job.json -o out.pdf --image --json
 ```json
 {
   "ok": true,
-  "pdf": "out.pdf",
-  "size": 12345,
-  "pages": 1
+  "command": "generate",
+  "mode": "job",
+  "templatePageCount": 1,
+  "inputCount": 1,
+  "pageCount": 1,
+  "outputPath": "out.pdf",
+  "outputBytes": 12345
 }
 ```
 
@@ -454,9 +458,13 @@ input 診断の例:
 ```json
 {
   "ok": true,
+  "command": "doctor",
   "target": "input",
   "healthy": false,
   "mode": "template",
+  "templatePageCount": 1,
+  "fieldCount": 1,
+  "estimatedPageCount": 1,
   "validation": {
     "valid": true,
     "pages": 1,
@@ -565,15 +573,20 @@ pdfme pdf2img invoice.pdf -o ./images/ --json
 ```
 
 `-o, --output` は **ディレクトリ専用**。`page-%d.png` や単一ファイル名はサポートしない。
-`-v, --verbose` を付けると、入力 PDF、総ページ数、対象ページ、出力ディレクトリ、format、scale、grid 条件を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
+`-v, --verbose` を付けると、入力、ページ数、対象ページ、出力先、format、scale、grid 条件を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
 ### `--json` 出力
 
 ```json
 {
   "ok": true,
+  "command": "pdf2img",
+  "pageCount": 1,
+  "selectedPageCount": 1,
+  "outputDir": "./images",
+  "outputPaths": ["invoice-1.png"],
   "pages": [
-    { "image": "invoice-1.png", "page": 1, "width": 210, "height": 297 }
+    { "outputPath": "invoice-1.png", "pageNumber": 1, "width": 210, "height": 297 }
   ]
 }
 ```
@@ -591,11 +604,13 @@ Page 1: 210 × 297 mm (A4 portrait)
 $ pdfme pdf2size invoice.pdf --json
 {
   "ok": true,
-  "pages": [{ "page": 1, "width": 210, "height": 297 }]
+  "command": "pdf2size",
+  "pageCount": 1,
+  "pages": [{ "pageNumber": 1, "width": 210, "height": 297 }]
 }
 ```
 
-`-v, --verbose` を付けると、入力 PDF と総ページ数を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
+`-v, --verbose` を付けると、入力とページ数を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
 ---
 

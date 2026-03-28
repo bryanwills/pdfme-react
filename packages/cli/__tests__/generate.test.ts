@@ -98,8 +98,9 @@ describe('generate command', () => {
     expect(existsSync(outputPath)).toBe(true);
 
     const parsed = JSON.parse(result.stdout);
-    expect(parsed.pdf).toBe(outputPath);
-    expect(parsed.pages).toBe(1);
+    expect(parsed.command).toBe('generate');
+    expect(parsed.outputPath).toBe(outputPath);
+    expect(parsed.pageCount).toBe(1);
   });
 
   it('supports verbose output without polluting JSON stdout', () => {
@@ -135,11 +136,12 @@ describe('generate command', () => {
     expect(result.status).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(outputPath);
+    expect(parsed.command).toBe('generate');
+    expect(parsed.outputPath).toBe(outputPath);
     expect(result.stderr).toContain(`Input: ${jobPath}`);
     expect(result.stderr).toContain('Mode: job');
-    expect(result.stderr).toContain(`Output PDF: ${outputPath}`);
-    expect(result.stderr).toContain('Image output: disabled');
+    expect(result.stderr).toContain(`Output: ${outputPath}`);
+    expect(result.stderr).toContain('Images: disabled');
   });
 
   it('fails with a validation error instead of crashing on invalid input', () => {
@@ -403,7 +405,7 @@ describe('generate command', () => {
     expect(existsSync(outputPath)).toBe(true);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(outputPath);
+    expect(parsed.outputPath).toBe(outputPath);
   });
 
   it('supports https ttf URLs in options.font', () => {
@@ -451,7 +453,7 @@ describe('generate command', () => {
     expect(existsSync(outputPath)).toBe(true);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(outputPath);
+    expect(parsed.outputPath).toBe(outputPath);
   });
 
   it('returns structured EFONT when a remote font fetch fails without network access', () => {
@@ -748,7 +750,7 @@ describe('generate command', () => {
     expect(existsSync(outputPath)).toBe(true);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(outputPath);
+    expect(parsed.outputPath).toBe(outputPath);
   });
 
   it('supports data URI font sources with ambiguous media types', () => {
@@ -791,7 +793,7 @@ describe('generate command', () => {
     expect(existsSync(outputPath)).toBe(true);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(outputPath);
+    expect(parsed.outputPath).toBe(outputPath);
   });
 
   it('supports public font URLs without an extension in options.font', () => {
@@ -839,7 +841,7 @@ describe('generate command', () => {
     expect(existsSync(outputPath)).toBe(true);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(outputPath);
+    expect(parsed.outputPath).toBe(outputPath);
   });
 
   it('returns structured EIO for missing local options.font files', () => {
@@ -1096,7 +1098,7 @@ describe('generate command', () => {
     expect(existsSync(outputPath)).toBe(true);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(outputPath);
+    expect(parsed.outputPath).toBe(outputPath);
   });
 
   it('returns structured EFONT when CJK text is present and --noAutoFont disables fallback resolution', () => {

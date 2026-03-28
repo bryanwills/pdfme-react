@@ -27,18 +27,18 @@ export default defineCommand({
       const sizes = await pdf2size(pdfData);
 
       if (args.verbose) {
-        console.error(`Input PDF: ${args.file}`);
-        console.error(`Total pages: ${sizes.length}`);
+        console.error(`Input: ${args.file}`);
+        console.error(`Pages: ${sizes.length}`);
       }
 
       const result = sizes.map((size, index) => ({
-        page: index + 1,
+        pageNumber: index + 1,
         width: Math.round(size.width * 100) / 100,
         height: Math.round(size.height * 100) / 100,
       }));
 
       if (args.json) {
-        printJson({ ok: true, pages: result });
+        printJson({ ok: true, command: 'pdf2size', pageCount: result.length, pages: result });
       } else {
         for (let i = 0; i < sizes.length; i++) {
           const size = sizes[i];

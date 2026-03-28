@@ -79,11 +79,14 @@ describe('doctor command', () => {
     expect(result.status).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe('doctor');
+    expect(parsed.templatePageCount).toBe(1);
+    expect(parsed.fieldCount).toBe(1);
     expect(parsed.target).toBe('input');
     expect(result.stderr).toContain('Target: input');
     expect(result.stderr).toContain(`Input: ${file}`);
     expect(result.stderr).toContain('Mode: template');
-    expect(result.stderr).toContain('Pages: 1');
+    expect(result.stderr).toContain('Template pages: 1');
   });
 
   it('rejects invalid imageFormat even for environment-only doctor runs', () => {

@@ -225,6 +225,7 @@ export default defineCommand({
         if (args.json) {
           printJson({
             ok: true,
+            command: 'doctor',
             target: 'environment',
             healthy,
             environment,
@@ -268,9 +269,11 @@ export default defineCommand({
         invocation.target === 'fonts'
           ? {
               ok: true,
+              command: 'doctor',
               target: 'fonts',
               healthy: diagnosis.healthy,
               mode: source.mode,
+              ...(source.mode === 'job' ? { inputCount: source.inputs?.length ?? 0 } : {}),
               environment,
               validation: diagnosis.validation,
               inspection: {
@@ -287,9 +290,14 @@ export default defineCommand({
             }
           : {
               ok: true,
+              command: 'doctor',
               target: 'input',
               healthy: diagnosis.healthy,
               mode: source.mode,
+              templatePageCount: diagnosis.validation.pages,
+              fieldCount: diagnosis.validation.fields,
+              ...(source.mode === 'job' ? { inputCount: source.inputs?.length ?? 0 } : {}),
+              estimatedPageCount: diagnosis.runtimeDiagnosis.estimatedPages,
               environment,
               validation: diagnosis.validation,
               inspection: diagnosis.inspection,
@@ -832,7 +840,7 @@ function printInputReport(payload: Record<string, unknown>): void {
 
   console.log(healthy ? '\u2713 Doctor checks passed' : '\u2717 Doctor found blocking issues');
   console.log(`Mode: ${payload.mode}`);
-  console.log(`Pages: ${validation.pages}`);
+  console.log(`Template pages: ${validation.pages}`);
   console.log(`Fields: ${validation.fields}`);
   console.log(`Schema types: ${inspection.schemaTypes.join(', ') || '(none)'}`);
   if (diagnosis.runtime) {
@@ -862,16 +870,16 @@ function printDoctorInputVerbose(
   console.error(`Target: ${invocation.target}`);
   console.error(`Input: ${describeDoctorInput(invocation.file)}`);
   console.error(`Mode: ${source.mode}`);
-  console.error(`Pages: ${diagnosis.validation.pages}`);
+  console.error(`Template pages: ${diagnosis.validation.pages}`);
   console.error(`Fields: ${diagnosis.validation.fields}`);
   if (source.mode === 'job') {
     console.error(`Inputs: ${source.inputs?.length ?? 0} set(s)`);
   }
   if (invocation.target === 'input') {
     console.error(`Estimated pages: ${diagnosis.runtimeDiagnosis.estimatedPages}`);
-    console.error(`Output PDF: ${diagnosis.runtimeDiagnosis.output.path}`);
+    console.error(`Output: ${diagnosis.runtimeDiagnosis.output.path}`);
     console.error(
-      `Image output: ${
+      `Images: ${
         diagnosis.runtimeDiagnosis.imageOutputs.enabled
           ? `enabled (${diagnosis.runtimeDiagnosis.imageOutputs.format}, ${diagnosis.runtimeDiagnosis.imageOutputs.paths.length} file(s))`
           : 'disabled'

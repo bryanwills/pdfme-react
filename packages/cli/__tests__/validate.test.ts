@@ -135,9 +135,10 @@ describe('validate command', () => {
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe('validate');
     expect(parsed.valid).toBe(true);
-    expect(parsed.pages).toBe(1);
-    expect(parsed.fields).toBe(1);
+    expect(parsed.templatePageCount).toBe(1);
+    expect(parsed.fieldCount).toBe(1);
     expect(parsed.inspection).toEqual({
       schemaTypes: ['text'],
       requiredPlugins: ['text'],
@@ -169,10 +170,11 @@ describe('validate command', () => {
     expect(result.status).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe('validate');
     expect(parsed.valid).toBe(true);
     expect(result.stderr).toContain(`Input: ${file}`);
     expect(result.stderr).toContain('Mode: template');
-    expect(result.stderr).toContain('Pages: 1');
+    expect(result.stderr).toContain('Template pages: 1');
     expect(result.stderr).toContain('Warnings: 0');
   });
 
@@ -214,8 +216,10 @@ describe('validate command', () => {
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe('validate');
     expect(parsed.mode).toBe('job');
     expect(parsed.valid).toBe(true);
+    expect(parsed.inputCount).toBe(1);
     expect(parsed.inspection.schemaTypes).toEqual(['text']);
     expect(parsed.inspection.requiredPlugins).toEqual(['text']);
     expect(parsed.inspection.requiredFonts).toEqual(['NotoSerifJP']);

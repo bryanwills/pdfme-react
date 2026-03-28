@@ -102,6 +102,9 @@ export default defineCommand({
         if (args.json) {
           printJson({
             ok: true,
+            command: 'examples',
+            mode: 'list',
+            templateCount: templateNames.length,
             source: manifestResult.source,
             baseUrl: getExamplesBaseUrl(),
             manifest: manifestResult.manifest,
@@ -140,6 +143,9 @@ export default defineCommand({
       }
 
       const output = args.withInputs ? buildExampleJob(templateResult.template) : templateResult.template;
+      const mode = args.withInputs ? 'job' : 'template';
+      const stats = countTemplateStats(templateResult.template);
+      const inputCount = args.withInputs ? (((output.inputs as unknown[])?.length ?? 0)) : undefined;
 
       if (args.verbose) {
         console.error(`Template: ${args.name}`);
@@ -147,7 +153,12 @@ export default defineCommand({
         if (templateResult.url) {
           console.error(`Template URL: ${templateResult.url}`);
         }
-        console.error(`Mode: ${args.withInputs ? 'job' : 'template'}`);
+        console.error(`Mode: ${mode}`);
+        console.error(`Template pages: ${stats.templatePageCount}`);
+        console.error(`Fields: ${stats.fieldCount}`);
+        if (inputCount !== undefined) {
+          console.error(`Inputs: ${inputCount} set(s)`);
+        }
         console.error(`Output: ${args.output ?? 'stdout'}`);
       }
 
@@ -157,10 +168,14 @@ export default defineCommand({
         if (args.json) {
           printJson({
             ok: true,
+            command: 'examples',
             name: args.name,
+            mode,
             source: templateResult.source,
+            templatePageCount: stats.templatePageCount,
+            fieldCount: stats.fieldCount,
+            ...(inputCount !== undefined ? { inputCount } : {}),
             outputPath: args.output,
-            mode: args.withInputs ? 'job' : 'template',
           });
         } else {
           const label = args.withInputs ? 'Job file' : 'Template';
@@ -172,9 +187,13 @@ export default defineCommand({
       if (args.json) {
         printJson({
           ok: true,
+          command: 'examples',
           name: args.name,
           source: templateResult.source,
-          mode: args.withInputs ? 'job' : 'template',
+          mode,
+          templatePageCount: stats.templatePageCount,
+          fieldCount: stats.fieldCount,
+          ...(inputCount !== undefined ? { inputCount } : {}),
           data: output,
         });
       } else {
@@ -196,4 +215,37 @@ function buildExampleJob(template: Record<string, unknown>): Record<string, unkn
   }
 
   return job;
+}
+
+function countTemplateStats(template: Record<string, unknown>): {
+  templatePageCount: number;
+  fieldCount: number;
+} {
+  const schemaPages = normalizeSchemaPages(template.schemas);
+  return {
+    templatePageCount: schemaPages.length,
+    fieldCount: schemaPages.reduce((count, page) => count + page.length, 0),
+  };
+}
+
+function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<string, unknown>>> {
+  if (!Array.isArray(rawSchemas)) {
+    return [];
+  }
+
+  return rawSchemas.map((page) => {
+    if (Array.isArray(page)) {
+      return page.filter(
+        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+      );
+    }
+
+    if (typeof page === 'object' && page !== null) {
+      return Object.values(page).filter(
+        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+      );
+    }
+
+    return [];
+  });
 }

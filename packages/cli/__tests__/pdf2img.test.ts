@@ -71,9 +71,15 @@ describe('pdf2img command', () => {
     expect(result.status).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe('pdf2img');
+    expect(parsed.pageCount).toBe(1);
+    expect(parsed.selectedPageCount).toBe(1);
     expect(parsed.pages).toHaveLength(1);
-    expect(result.stderr).toContain(`Input PDF: ${pdfPath}`);
-    expect(result.stderr).toContain('Output directory:');
+    expect(parsed.outputPaths).toHaveLength(1);
+    expect(parsed.pages[0].pageNumber).toBe(1);
+    expect(parsed.pages[0].outputPath).toContain('verbose-sample-1.png');
+    expect(result.stderr).toContain(`Input: ${pdfPath}`);
+    expect(result.stderr).toContain('Output:');
     expect(result.stderr).toContain('Selected pages: 1');
   });
 });

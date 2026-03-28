@@ -72,7 +72,8 @@ describe('CLI offline local-input contract', () => {
     expect(existsSync(pdfPath)).toBe(true);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
-    expect(parsed.pdf).toBe(pdfPath);
+    expect(parsed.command).toBe('generate');
+    expect(parsed.outputPath).toBe(pdfPath);
   });
 
   it('validates a local template without network access', () => {
@@ -112,6 +113,7 @@ describe('CLI offline local-input contract', () => {
     expect(pdf2imgResult.exitCode).toBe(0);
     const pdf2imgParsed = JSON.parse(pdf2imgResult.stdout);
     expect(pdf2imgParsed.ok).toBe(true);
+    expect(pdf2imgParsed.command).toBe('pdf2img');
     expect(pdf2imgParsed.pages).toHaveLength(1);
     expect(existsSync(join(outputDir, 'sample-1.png'))).toBe(true);
 
@@ -119,7 +121,8 @@ describe('CLI offline local-input contract', () => {
     expect(pdf2sizeResult.exitCode).toBe(0);
     const pdf2sizeParsed = JSON.parse(pdf2sizeResult.stdout);
     expect(pdf2sizeParsed.ok).toBe(true);
+    expect(pdf2sizeParsed.command).toBe('pdf2size');
     expect(pdf2sizeParsed.pages).toHaveLength(1);
-    expect(pdf2sizeParsed.pages[0].page).toBe(1);
+    expect(pdf2sizeParsed.pages[0].pageNumber).toBe(1);
   });
 });

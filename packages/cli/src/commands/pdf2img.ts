@@ -77,16 +77,16 @@ export default defineCommand({
       }
 
       if (args.verbose) {
-        console.error(`Input PDF: ${args.file}`);
-        console.error(`Total pages: ${sizes.length}`);
+        console.error(`Input: ${args.file}`);
+        console.error(`Pages: ${sizes.length}`);
         console.error(`Selected pages: ${pageIndices.map((pageIdx) => pageIdx + 1).join(', ')}`);
-        console.error(`Output directory: ${outputDir}`);
+        console.error(`Output: ${outputDir}`);
         console.error(`Image format: ${imageFormat}`);
         console.error(`Scale: ${scale}`);
         console.error(`Grid: ${args.grid ? `enabled (${gridSize}mm)` : 'disabled'}`);
       }
 
-      const results: Array<{ image: string; page: number; width: number; height: number }> = [];
+      const results: Array<{ outputPath: string; pageNumber: number; width: number; height: number }> = [];
 
       for (const pageIdx of pageIndices) {
         let imageData = allImages[pageIdx];
@@ -107,8 +107,8 @@ export default defineCommand({
 
         const paperSize = detectPaperSize(size.width, size.height);
         results.push({
-          image: outputPath,
-          page: pageIdx + 1,
+          outputPath,
+          pageNumber: pageIdx + 1,
           width: Math.round(size.width * 100) / 100,
           height: Math.round(size.height * 100) / 100,
         });
@@ -122,7 +122,15 @@ export default defineCommand({
       }
 
       if (args.json) {
-        printJson({ ok: true, pages: results });
+        printJson({
+          ok: true,
+          command: 'pdf2img',
+          pageCount: sizes.length,
+          selectedPageCount: results.length,
+          outputDir,
+          outputPaths: results.map((result) => result.outputPath),
+          pages: results,
+        });
       }
     });
   },

@@ -77,9 +77,12 @@ In this flow, your template uses the existing PDF as `basePdf`, and pdfme render
 When you pass `--json`:
 
 - stdout is JSON only
+- success payloads include `command`
 - `--verbose` writes supplementary context to stderr
 - failures return `ok: false` with a structured error
 - `doctor` returns `ok: true` when the command ran successfully, and uses `healthy` to report whether blocking issues were found
+- scalar page counts use canonical names such as `pageCount`, `templatePageCount`, and `estimatedPageCount`
+- per-page arrays stay under `pages`, with `pageNumber` as the page index field
 - `validate --json` and `doctor --json` return field-level `inputHints`, so automation can tell whether a field expects a plain string or a JSON string object
 
 This makes the CLI suitable for automation, agents, and CI gates.

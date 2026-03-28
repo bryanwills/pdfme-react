@@ -1,6 +1,6 @@
 # pdfme AI駆動開発基盤 — PLAN
 
-Last updated: 2026-03-27 JST
+Last updated: 2026-03-28 JST
 
 Latest committed checkpoint:
 
@@ -42,6 +42,7 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - CLI は公式 plugin 前提で進める
 - `examples` は convenience command として扱い、core workflow と分ける
 - 新しい surface を入れるなら、実装前に spec を先に書く
+- 未リリース段階の parity work では、canonical surface を固めるための breaking rename / removal を許容する
 - Rich Text / Markdown Authoring は CLI hardening とは別トラックとして扱う
 
 ## Active Work
@@ -50,8 +51,10 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 
 次の重点は verbose 以外の parity。
 
-- JSON payload の naming / shape をどこまで揃えるか決める
-- human-readable 出力の summary 粒度と help text を揃える
+- parity は additive alias より canonical rename を優先する
+- count semantics は `pageCount` / `templatePageCount` / `estimatedPageCount` を分ける
+- path semantics は `outputPath` / `outputPaths` / `outputDir` / `imagePaths` に寄せる
+- success payload の breaking normalize と verbose label を first pass の対象にする
 - command ごとの差を「意図した違い」に絞る
 
 ### 2. Input Discoverability
@@ -70,7 +73,7 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 
 ## Open Questions
 
-- cross-command JSON payload はどこまで統一するべきか
+- `doctor.validation.*` の nested legacy count をどこまで残すか
 - `inputHints` を広げる対象はどこまでにするか
 - onboarding の主役を `examples` 起点にするか、`basePdf` overlay 起点にするか
 
@@ -104,4 +107,4 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 
 - まずこの `PLAN.md` を読む
 - 次の slice は feature 追加ではなく parity / discoverability / docs polish を優先する
-- 新しい surface を入れる前に、ここに spec と non-goals を書く
+- current parity slice では pre-release 前提で canonical field 名へ揃える

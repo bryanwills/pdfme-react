@@ -70,15 +70,17 @@ export default defineCommand({
       }
 
       const valid = result.errors.length === 0 && (!args.strict || result.warnings.length === 0);
+      const inputCount = source.mode === 'job' ? (source.inputs?.length ?? 0) : undefined;
 
       if (args.verbose) {
         console.error(`Input: ${describeValidationInput(args.file)}`);
         console.error(`Mode: ${source.mode}`);
-        console.error(`Pages: ${result.pages}`);
+        console.error(`Template pages: ${result.pages}`);
         console.error(`Fields: ${result.fields}`);
-        if (source.mode === 'job') {
-          console.error(`Inputs: ${source.inputs?.length ?? 0} set(s)`);
+        if (inputCount !== undefined) {
+          console.error(`Inputs: ${inputCount} set(s)`);
         }
+        console.error(`Valid: ${valid ? 'yes' : 'no'}`);
         console.error(`Strict: ${args.strict ? 'enabled' : 'disabled'}`);
         console.error(`Errors: ${result.errors.length}`);
         console.error(`Warnings: ${result.warnings.length}`);
@@ -87,10 +89,12 @@ export default defineCommand({
       if (args.json) {
         printJson({
           ok: true,
+          command: 'validate',
           valid,
           mode: source.mode,
-          pages: result.pages,
-          fields: result.fields,
+          templatePageCount: result.pages,
+          fieldCount: result.fields,
+          ...(inputCount !== undefined ? { inputCount } : {}),
           errors: result.errors,
           warnings: result.warnings,
           inspection,

@@ -45,8 +45,10 @@ describe('pdf2size command', () => {
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe('pdf2size');
+    expect(parsed.pageCount).toBe(1);
     expect(parsed.pages).toHaveLength(1);
-    expect(parsed.pages[0].page).toBe(1);
+    expect(parsed.pages[0].pageNumber).toBe(1);
     expect(parsed.pages[0].width).toBeCloseTo(210, 0);
     expect(parsed.pages[0].height).toBeCloseTo(297, 0);
   });
@@ -85,8 +87,9 @@ describe('pdf2size command', () => {
     expect(result.status).toBe(0);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe('pdf2size');
     expect(parsed.pages).toHaveLength(1);
-    expect(result.stderr).toContain(`Input PDF: ${pdfPath}`);
-    expect(result.stderr).toContain('Total pages: 1');
+    expect(result.stderr).toContain(`Input: ${pdfPath}`);
+    expect(result.stderr).toContain('Pages: 1');
   });
 });
