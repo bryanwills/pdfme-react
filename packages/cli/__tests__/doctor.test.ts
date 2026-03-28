@@ -134,7 +134,7 @@ describe('doctor command', () => {
     expect(parsed.issues.some((issue: string) => issue.includes('Base PDF file not found'))).toBe(true);
   });
 
-  it('returns field-level input hints for select, checkbox, radioGroup, and multiVariableText discovery', () => {
+  it('returns field-level input hints for date/time, select, checkbox, radioGroup, and multiVariableText discovery', () => {
     const file = join(TMP, 'doctor-input-hints.json');
     writeFileSync(
       file,
@@ -171,6 +171,30 @@ describe('doctor command', () => {
             type: 'checkbox',
             position: { x: 20, y: 95 },
             width: 10,
+            height: 10,
+          },
+          {
+            name: 'dueDate',
+            type: 'date',
+            format: 'dd/MM/yyyy',
+            position: { x: 20, y: 105 },
+            width: 30,
+            height: 10,
+          },
+          {
+            name: 'appointmentTime',
+            type: 'time',
+            format: 'HH:mm',
+            position: { x: 55, y: 105 },
+            width: 20,
+            height: 10,
+          },
+          {
+            name: 'publishedAt',
+            type: 'dateTime',
+            format: 'dd/MM/yyyy HH:mm',
+            position: { x: 80, y: 105 },
+            width: 50,
             height: 10,
           },
           {
@@ -234,6 +258,36 @@ describe('doctor command', () => {
             kind: 'enumString',
             allowedValues: ['false', 'true'],
             example: 'true',
+          },
+        }),
+        expect.objectContaining({
+          name: 'dueDate',
+          type: 'date',
+          expectedInput: {
+            kind: 'string',
+            format: 'dd/MM/yyyy',
+            canonicalFormat: 'yyyy/MM/dd',
+            example: '2026/03/28',
+          },
+        }),
+        expect.objectContaining({
+          name: 'appointmentTime',
+          type: 'time',
+          expectedInput: {
+            kind: 'string',
+            format: 'HH:mm',
+            canonicalFormat: 'HH:mm',
+            example: '14:30',
+          },
+        }),
+        expect.objectContaining({
+          name: 'publishedAt',
+          type: 'dateTime',
+          expectedInput: {
+            kind: 'string',
+            format: 'dd/MM/yyyy HH:mm',
+            canonicalFormat: 'yyyy/MM/dd HH:mm',
+            example: '2026/03/28 14:30',
           },
         }),
         expect.objectContaining({

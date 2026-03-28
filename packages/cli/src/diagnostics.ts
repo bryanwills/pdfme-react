@@ -38,6 +38,8 @@ export interface FieldInputHint {
     variableNames?: string[];
     allowedValues?: string[];
     example?: string;
+    format?: string;
+    canonicalFormat?: string;
     groupName?: string;
     groupMemberNames?: string[];
   };
@@ -210,6 +212,8 @@ export function collectInputHints(template: Record<string, unknown>): FieldInput
         hint.type,
         hint.expectedInput.kind,
         hint.expectedInput.example ?? '',
+        hint.expectedInput.format ?? '',
+        hint.expectedInput.canonicalFormat ?? '',
         (hint.expectedInput.variableNames ?? []).join('\u0000'),
         (hint.expectedInput.allowedValues ?? []).join('\u0000'),
         hint.expectedInput.groupName ?? '',
@@ -433,6 +437,23 @@ function buildFieldInputHint(
     }
   }
 
+  if (type === 'date' || type === 'time' || type === 'dateTime') {
+    const canonicalFormat = getCanonicalDateStoredFormat(type);
+
+    return {
+      name: schema.name as string,
+      type,
+      pages: [page],
+      required: schema.required === true,
+      expectedInput: {
+        kind: 'string',
+        format: getDateHintFormat(schema, canonicalFormat),
+        canonicalFormat,
+        example: getDateInputExample(type),
+      },
+    };
+  }
+
   return {
     name: schema.name as string,
     type,
@@ -450,6 +471,37 @@ function buildMultiVariableTextExample(variableNames: string[]): string {
       variableNames.map((variableName) => [variableName, variableName.toUpperCase()]),
     ),
   );
+}
+
+function getCanonicalDateStoredFormat(type: 'date' | 'time' | 'dateTime'): string {
+  switch (type) {
+    case 'date':
+      return 'yyyy/MM/dd';
+    case 'time':
+      return 'HH:mm';
+    case 'dateTime':
+      return 'yyyy/MM/dd HH:mm';
+  }
+}
+
+function getDateHintFormat(schema: Record<string, unknown>, canonicalFormat: string): string {
+  const formatValue = typeof schema.format === 'string' ? schema.format.trim() : '';
+  if (!formatValue || formatValue === 'undefined') {
+    return canonicalFormat;
+  }
+
+  return formatValue;
+}
+
+function getDateInputExample(type: 'date' | 'time' | 'dateTime'): string {
+  switch (type) {
+    case 'date':
+      return '2026/03/28';
+    case 'time':
+      return '14:30';
+    case 'dateTime':
+      return '2026/03/28 14:30';
+  }
 }
 
 function getInputContractIssue(
