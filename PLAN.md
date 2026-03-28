@@ -4,7 +4,7 @@ Last updated: 2026-03-28 JST
 
 Latest committed checkpoint:
 
-- `959fbf0c` `refactor(cli): normalize payload parity across commands`
+- `c8a2b613` `feat(cli): add radio group input contract hints`
 
 ## Purpose
 
@@ -64,6 +64,9 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - `inputHints` を他の特殊入力型まで広げるか決める
 - `radioGroup` は field-local bool ではなく group-aware enum として扱う
 - `radioGroup` では `groupName` / `groupMemberNames` を返し、同一 group の複数 `true` は blocking issue にする
+- `date` / `time` / `dateTime` は current slice では generic string のままにする
+- `schema.format` / `locale` は表示 contract であり、machine input contract と混ぜない
+- 将来 date 系を広げるなら、display format ではなく canonical stored content format を先に定義する
 - 広げるなら、型ごとの input contract を先に整理する
 - generic すぎる hint で誤解を増やさない
 
@@ -77,6 +80,7 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 
 - `doctor.validation.*` の nested legacy count をどこまで残すか
 - `inputHints` を広げる対象はどこまでにするか
+- date 系を hint 化するなら canonical stored content format をどう表すか
 - onboarding の主役を `examples` 起点にするか、`basePdf` overlay 起点にするか
 
 ## Explicit Non-Goals For The Next Slice
