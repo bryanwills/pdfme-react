@@ -4,7 +4,7 @@ Last updated: 2026-03-28 JST
 
 Latest committed checkpoint:
 
-- `e9456fcf` `docs(plan): define remaining input hint boundary`
+- `dc129c6a` `feat(cli): add table input contract hints`
 
 ## Purpose
 
@@ -69,8 +69,8 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - `schema.format` / `locale` は表示 contract として surface に出すが、current slice では strict validation までは行わない
 - `table` は canonical input を `string[][]` の nested JSON value として扱う
 - `table` は `columnCount` / `columnHeaders` を hint に含め、JSON string は compatibility path としてのみ受ける
-- `image` / `signature` は asset-like な data URL string のため、current slice では generic string のままにする
-- `svg` は markup string だが sanitization と validity 判定が絡むため、current slice では generic string のままにする
+- `image` / `signature` / `svg` は `kind = "string"` のまま `contentKind` だけ返す
+- asset-like input は current slice では sample payload や strict validation までは行わない
 - barcode 系は type ごとに validation rule が大きく違うため、current slice では generic string のままにする
 - 広げるなら、型ごとの input contract を先に整理する
 - generic すぎる hint で誤解を増やさない
@@ -86,7 +86,6 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 - `doctor.validation.*` の nested legacy count をどこまで残すか
 - `inputHints` を広げる対象はどこまでにするか
 - date 系を strict validate するなら display format と canonical stored content をどう切り分けるか
-- asset-like input (`image` / `signature` / `svg`) を hint 化するなら content kind だけ出すか sample まで出すか
 - barcode 系を hint 化するなら regex 文字列を返すか human description に留めるか
 - onboarding の主役を `examples` 起点にするか、`basePdf` overlay 起点にするか
 

@@ -346,7 +346,7 @@ pdfme validate template.json -v --json
 `validate` は template 単体だけでなく unified job (`{ template, inputs, options? }`) も受理する。`--strict` を付けると warning も exit code 1 に昇格する。
 `-v, --verbose` を付けると、入力 source、mode、pages / fields、job 時の input 数、strict 条件、error / warning 件数を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
-`--json` では `inputHints` も返す。これにより field ごとの期待入力形式を事前に把握できる。たとえば `text` は plain string、`table` は `string[][]` の nested JSON array、`date` / `time` / `dateTime` は `format` と `canonicalFormat` を持つ string、`select` / `checkbox` は constrained string enum、`radioGroup` は group-aware enum、`multiVariableText` は JSON string object を期待する。
+`--json` では `inputHints` も返す。これにより field ごとの期待入力形式を事前に把握できる。たとえば `text` は plain string、`image` / `signature` / `svg` は `contentKind` 付き string、`table` は `string[][]` の nested JSON array、`date` / `time` / `dateTime` は `format` と `canonicalFormat` を持つ string、`select` / `checkbox` は constrained string enum、`radioGroup` は group-aware enum、`multiVariableText` は JSON string object を期待する。
 
 ```json
 [
@@ -401,6 +401,16 @@ pdfme validate template.json -v --json
       "columnHeaders": ["Item", "Qty", "Price"],
       "example": [["Item value", "Qty value", "Price value"]],
       "acceptsJsonString": true
+    }
+  },
+  {
+    "name": "logo",
+    "type": "image",
+    "pages": [1],
+    "required": false,
+    "expectedInput": {
+      "kind": "string",
+      "contentKind": "imageDataUrl"
     }
   },
   {
@@ -495,7 +505,7 @@ runtime/path の事前診断には `generate` と同じく `-o, --output`, `--fo
 `doctor` も `validate` と同様に、コマンド自体が実行できた場合は `ok: true` を返し、blocking issue の有無は `healthy` で表す。`target` は `environment` / `input` / `fonts` のいずれかになる。
 
 font payload の `explicitSources` / `implicitSources` には `needsNetwork` が含まれるため、agent は「その source が今の環境で network 前提か」を事前判定できる。
-同様に `inputHints` には field ごとの期待入力形式が含まれるため、`text` / `table` / `date` / `time` / `dateTime` / `select` / `checkbox` / `radioGroup` / `multiVariableText` の違いを generate 前に判定できる。
+同様に `inputHints` には field ごとの期待入力形式が含まれるため、`text` / `image` / `signature` / `svg` / `table` / `date` / `time` / `dateTime` / `select` / `checkbox` / `radioGroup` / `multiVariableText` の違いを generate 前に判定できる。
 
 環境診断の例:
 
@@ -552,7 +562,7 @@ input 診断の例:
 }
 ```
 
-`table` では `inputHints.expectedInput.kind = "stringMatrix"` と `columnCount` / `columnHeaders` が返る。canonical input は `string[][]` の nested JSON array で、`acceptsJsonString: true` のときは後方互換として JSON string も受理する。`date` / `time` / `dateTime` では `format` と `canonicalFormat` が返る。`example` は current CLI が期待する canonical stored content 例で、`format` は schema 側の format ベースの hint を示す。`select` / `checkbox` では `inputHints.expectedInput.kind = "enumString"` と `allowedValues` が返る。`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が返り、同じ group 内で複数 field を `"true"` にすると `generate --json` / `validate --json` / `doctor --json` は `EVALIDATE` 相当で fail-fast する。`multiVariableText` では expected variable names と JSON string 例が返る。
+`image` / `signature` / `svg` では `kind = "string"` のまま、`contentKind` で `imageDataUrl` / `signatureImageDataUrl` / `svgMarkup` を返す。`table` では `inputHints.expectedInput.kind = "stringMatrix"` と `columnCount` / `columnHeaders` が返る。canonical input は `string[][]` の nested JSON array で、`acceptsJsonString: true` のときは後方互換として JSON string も受理する。`date` / `time` / `dateTime` では `format` と `canonicalFormat` が返る。`example` は current CLI が期待する canonical stored content 例で、`format` は schema 側の format ベースの hint を示す。`select` / `checkbox` では `inputHints.expectedInput.kind = "enumString"` と `allowedValues` が返る。`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が返り、同じ group 内で複数 field を `"true"` にすると `generate --json` / `validate --json` / `doctor --json` は `EVALIDATE` 相当で fail-fast する。`multiVariableText` では expected variable names と JSON string 例が返る。
 
 ### `multiVariableText` Input Contract
 

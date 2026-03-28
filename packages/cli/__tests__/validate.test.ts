@@ -377,7 +377,7 @@ describe('validate command', () => {
     });
   });
 
-  it('returns field-level input hints for text, table, date/time, select, checkbox, radioGroup, and multiVariableText', () => {
+  it('returns field-level input hints for text, asset-like strings, table, date/time, select, checkbox, radioGroup, and multiVariableText', () => {
     const file = join(TMP, 'input-hints.json');
     writeFileSync(
       file,
@@ -417,11 +417,32 @@ describe('validate command', () => {
             height: 10,
           },
           {
+            name: 'logo',
+            type: 'image',
+            position: { x: 20, y: 105 },
+            width: 20,
+            height: 20,
+          },
+          {
+            name: 'signedByCustomer',
+            type: 'signature',
+            position: { x: 45, y: 105 },
+            width: 30,
+            height: 20,
+          },
+          {
+            name: 'brandMark',
+            type: 'svg',
+            position: { x: 80, y: 105 },
+            width: 20,
+            height: 20,
+          },
+          {
             name: 'lineItems',
             type: 'table',
             head: ['Item', 'Qty', 'Price'],
             headWidthPercentages: [50, 20, 30],
-            position: { x: 20, y: 105 },
+            position: { x: 20, y: 135 },
             width: 120,
             height: 20,
           },
@@ -429,7 +450,7 @@ describe('validate command', () => {
             name: 'dueDate',
             type: 'date',
             format: 'dd/MM/yyyy',
-            position: { x: 20, y: 135 },
+            position: { x: 20, y: 165 },
             width: 30,
             height: 10,
           },
@@ -437,7 +458,7 @@ describe('validate command', () => {
             name: 'appointmentTime',
             type: 'time',
             format: 'HH:mm',
-            position: { x: 55, y: 135 },
+            position: { x: 55, y: 165 },
             width: 20,
             height: 10,
           },
@@ -445,7 +466,7 @@ describe('validate command', () => {
             name: 'publishedAt',
             type: 'dateTime',
             format: 'dd/MM/yyyy HH:mm',
-            position: { x: 80, y: 135 },
+            position: { x: 80, y: 165 },
             width: 50,
             height: 10,
           },
@@ -453,7 +474,7 @@ describe('validate command', () => {
             name: 'choiceA',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 20, y: 145 },
+            position: { x: 20, y: 175 },
             width: 10,
             height: 10,
           },
@@ -461,7 +482,7 @@ describe('validate command', () => {
             name: 'choiceB',
             type: 'radioGroup',
             group: 'choices',
-            position: { x: 40, y: 145 },
+            position: { x: 40, y: 175 },
             width: 10,
             height: 10,
           },
@@ -513,6 +534,33 @@ describe('validate command', () => {
             kind: 'enumString',
             allowedValues: ['false', 'true'],
             example: 'true',
+          },
+        }),
+        expect.objectContaining({
+          name: 'logo',
+          type: 'image',
+          pages: [1],
+          expectedInput: {
+            kind: 'string',
+            contentKind: 'imageDataUrl',
+          },
+        }),
+        expect.objectContaining({
+          name: 'signedByCustomer',
+          type: 'signature',
+          pages: [1],
+          expectedInput: {
+            kind: 'string',
+            contentKind: 'signatureImageDataUrl',
+          },
+        }),
+        expect.objectContaining({
+          name: 'brandMark',
+          type: 'svg',
+          pages: [1],
+          expectedInput: {
+            kind: 'string',
+            contentKind: 'svgMarkup',
           },
         }),
         expect.objectContaining({

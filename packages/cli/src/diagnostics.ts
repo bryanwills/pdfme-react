@@ -40,6 +40,7 @@ export interface FieldInputHint {
     example?: string | string[][];
     format?: string;
     canonicalFormat?: string;
+    contentKind?: string;
     groupName?: string;
     groupMemberNames?: string[];
     columnCount?: number;
@@ -217,6 +218,7 @@ export function collectInputHints(template: Record<string, unknown>): FieldInput
         JSON.stringify(hint.expectedInput.example ?? null),
         hint.expectedInput.format ?? '',
         hint.expectedInput.canonicalFormat ?? '',
+        hint.expectedInput.contentKind ?? '',
         (hint.expectedInput.variableNames ?? []).join('\u0000'),
         (hint.expectedInput.allowedValues ?? []).join('\u0000'),
         hint.expectedInput.groupName ?? '',
@@ -443,6 +445,20 @@ function buildFieldInputHint(
     }
   }
 
+  const assetContentKind = getAssetContentKind(type);
+  if (assetContentKind) {
+    return {
+      name: schema.name as string,
+      type,
+      pages: [page],
+      required: schema.required === true,
+      expectedInput: {
+        kind: 'string',
+        contentKind: assetContentKind,
+      },
+    };
+  }
+
   if (type === 'table') {
     const columnHeaders = getOrderedStringValues(Array.isArray(schema.head) ? schema.head : []);
     const columnCount = getTableColumnCount(schema, columnHeaders);
@@ -522,6 +538,19 @@ function getTableColumnCount(schema: Record<string, unknown>, columnHeaders: str
 
   const parsedContent = parseTableStringMatrix(schema.content);
   return parsedContent?.[0]?.length ?? 0;
+}
+
+function getAssetContentKind(type: string): string | null {
+  switch (type) {
+    case 'image':
+      return 'imageDataUrl';
+    case 'signature':
+      return 'signatureImageDataUrl';
+    case 'svg':
+      return 'svgMarkup';
+    default:
+      return null;
+  }
 }
 
 function getCanonicalDateStoredFormat(type: 'date' | 'time' | 'dateTime'): string {
