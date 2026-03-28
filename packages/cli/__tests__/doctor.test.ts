@@ -134,7 +134,7 @@ describe('doctor command', () => {
     expect(parsed.issues.some((issue: string) => issue.includes('Base PDF file not found'))).toBe(true);
   });
 
-  it('returns field-level input hints for select, checkbox, and multiVariableText discovery', () => {
+  it('returns field-level input hints for select, checkbox, radioGroup, and multiVariableText discovery', () => {
     const file = join(TMP, 'doctor-input-hints.json');
     writeFileSync(
       file,
@@ -170,6 +170,22 @@ describe('doctor command', () => {
             name: 'approved',
             type: 'checkbox',
             position: { x: 20, y: 95 },
+            width: 10,
+            height: 10,
+          },
+          {
+            name: 'choiceA',
+            type: 'radioGroup',
+            group: 'choices',
+            position: { x: 20, y: 115 },
+            width: 10,
+            height: 10,
+          },
+          {
+            name: 'choiceB',
+            type: 'radioGroup',
+            group: 'choices',
+            position: { x: 40, y: 115 },
             width: 10,
             height: 10,
           },
@@ -218,6 +234,17 @@ describe('doctor command', () => {
             kind: 'enumString',
             allowedValues: ['false', 'true'],
             example: 'true',
+          },
+        }),
+        expect.objectContaining({
+          name: 'choiceA',
+          type: 'radioGroup',
+          expectedInput: {
+            kind: 'enumString',
+            allowedValues: ['false', 'true'],
+            example: 'true',
+            groupName: 'choices',
+            groupMemberNames: ['choiceA', 'choiceB'],
           },
         }),
       ]),
@@ -296,6 +323,54 @@ describe('doctor command', () => {
     expect(parsed.issues).toEqual(
       expect.arrayContaining([
         expect.stringContaining('expects one of: "false", "true"'),
+      ]),
+    );
+  });
+
+  it('marks unified jobs unhealthy when radioGroup sets multiple fields in the same group to true', () => {
+    const file = join(TMP, 'doctor-invalid-radio-group-job.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'choiceA',
+              type: 'radioGroup',
+              group: 'choices',
+              position: { x: 20, y: 20 },
+              width: 10,
+              height: 10,
+            },
+            {
+              name: 'choiceB',
+              type: 'radioGroup',
+              group: 'choices',
+              position: { x: 40, y: 20 },
+              width: 10,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ choiceA: 'true', choiceB: 'true' }],
+      }),
+    );
+
+    const result = runCli(['doctor', file, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Radio group "choices"'),
+      ]),
+    );
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('choiceA, choiceB'),
       ]),
     );
   });

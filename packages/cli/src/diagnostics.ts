@@ -38,6 +38,8 @@ export interface FieldInputHint {
     variableNames?: string[];
     allowedValues?: string[];
     example?: string;
+    groupName?: string;
+    groupMemberNames?: string[];
   };
 }
 
@@ -190,6 +192,7 @@ export function inspectTemplate(
 export function collectInputHints(template: Record<string, unknown>): FieldInputHint[] {
   const hintMap = new Map<string, FieldInputHint>();
   const schemaPages = normalizeSchemaPages(template.schemas);
+  const radioGroupMembers = collectRadioGroupMembers(schemaPages);
 
   for (let pageIdx = 0; pageIdx < schemaPages.length; pageIdx++) {
     for (const schema of schemaPages[pageIdx]) {
@@ -201,7 +204,7 @@ export function collectInputHints(template: Record<string, unknown>): FieldInput
         continue;
       }
 
-      const hint = buildFieldInputHint(schema, pageIdx + 1);
+      const hint = buildFieldInputHint(schema, pageIdx + 1, radioGroupMembers);
       const key = [
         hint.name,
         hint.type,
@@ -209,6 +212,8 @@ export function collectInputHints(template: Record<string, unknown>): FieldInput
         hint.expectedInput.example ?? '',
         (hint.expectedInput.variableNames ?? []).join('\u0000'),
         (hint.expectedInput.allowedValues ?? []).join('\u0000'),
+        hint.expectedInput.groupName ?? '',
+        (hint.expectedInput.groupMemberNames ?? []).join('\u0000'),
       ].join('\u0001');
       const existing = hintMap.get(key);
 
@@ -253,6 +258,8 @@ export function getInputContractIssues(
         issues.push(issue);
       }
     }
+
+    issues.push(...getRadioGroupSelectionIssues(hints, input, inputIndex));
   }
 
   return issues;
@@ -351,6 +358,7 @@ export function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<st
 function buildFieldInputHint(
   schema: Record<string, unknown>,
   page: number,
+  radioGroupMembers: Map<string, string[]>,
 ): FieldInputHint {
   const type = schema.type as string;
 
@@ -382,6 +390,25 @@ function buildFieldInputHint(
         kind: 'enumString',
         allowedValues: ['false', 'true'],
         example: 'true',
+      },
+    };
+  }
+
+  if (type === 'radioGroup') {
+    const groupName = typeof schema.group === 'string' ? schema.group : '';
+    const groupMemberNames = groupName ? (radioGroupMembers.get(groupName) ?? []) : [];
+
+    return {
+      name: schema.name as string,
+      type,
+      pages: [page],
+      required: schema.required === true,
+      expectedInput: {
+        kind: 'enumString',
+        allowedValues: ['false', 'true'],
+        example: 'true',
+        ...(groupName ? { groupName } : {}),
+        ...(groupMemberNames.length > 0 ? { groupMemberNames } : {}),
       },
     };
   }
@@ -511,6 +538,56 @@ function getMultiVariableTextInputIssue(
   return null;
 }
 
+function getRadioGroupSelectionIssues(
+  hints: FieldInputHint[],
+  input: Record<string, unknown>,
+  inputIndex: number,
+): string[] {
+  const groups = new Map<string, FieldInputHint[]>();
+
+  for (const hint of hints) {
+    if (
+      hint.type !== 'radioGroup' ||
+      !hint.expectedInput.groupName ||
+      (hint.expectedInput.groupMemberNames?.length ?? 0) <= 1
+    ) {
+      continue;
+    }
+
+    const groupName = hint.expectedInput.groupName;
+    const existing = groups.get(groupName);
+    if (existing) {
+      existing.push(hint);
+    } else {
+      groups.set(groupName, [hint]);
+    }
+  }
+
+  const issues: string[] = [];
+
+  for (const [groupName, groupHints] of groups) {
+    const selectedNames = groupHints
+      .filter((hint) => input[hint.name] === 'true')
+      .map((hint) => hint.name);
+
+    if (selectedNames.length <= 1) {
+      continue;
+    }
+
+    issues.push(
+      buildRadioGroupSelectionErrorMessage({
+        groupName,
+        inputIndex,
+        groupMemberNames:
+          groupHints[0]?.expectedInput.groupMemberNames ?? groupHints.map((hint) => hint.name),
+        selectedNames,
+      }),
+    );
+  }
+
+  return issues;
+}
+
 function getEnumStringInputIssue(
   hint: FieldInputHint,
   input: Record<string, unknown>,
@@ -574,6 +651,15 @@ function buildEnumStringErrorMessage(args: {
   return `Field "${args.hint.name}" (${args.hint.type}) in input ${args.inputIndex + 1} expects${allowedLabel}.${exampleLabel} ${args.extra}`.trim();
 }
 
+function buildRadioGroupSelectionErrorMessage(args: {
+  groupName: string;
+  inputIndex: number;
+  groupMemberNames: string[];
+  selectedNames: string[];
+}): string {
+  return `Radio group "${args.groupName}" in input ${args.inputIndex + 1} allows at most one "true" value across fields: ${args.groupMemberNames.join(', ')}. Received "true" for: ${args.selectedNames.join(', ')}. Set one field to "true" and the others to "false".`;
+}
+
 function describeValue(value: unknown): string {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -603,6 +689,37 @@ function getUniqueOrderedStringValues(values: unknown[]): string[] {
   return [
     ...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0)),
   ];
+}
+
+function collectRadioGroupMembers(
+  schemaPages: Array<Array<Record<string, unknown>>>,
+): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+
+  for (const page of schemaPages) {
+    for (const schema of page) {
+      if (schema.readOnly === true || schema.type !== 'radioGroup') {
+        continue;
+      }
+
+      const name = typeof schema.name === 'string' ? schema.name : '';
+      const groupName = typeof schema.group === 'string' ? schema.group : '';
+      if (!name || !groupName) {
+        continue;
+      }
+
+      const existing = groups.get(groupName);
+      if (existing) {
+        if (!existing.includes(name)) {
+          existing.push(name);
+        }
+      } else {
+        groups.set(groupName, [name]);
+      }
+    }
+  }
+
+  return groups;
 }
 
 export function summarizeBasePdf(

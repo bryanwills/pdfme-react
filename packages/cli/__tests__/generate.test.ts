@@ -406,6 +406,55 @@ describe('generate command', () => {
     expect(parsed.error.message).toContain('Received boolean');
   });
 
+  it('returns structured EVALIDATE when radioGroup sets multiple fields in the same group to true', () => {
+    const workDir = join(TMP, 'invalid-radio-group-selection');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'choiceA',
+              type: 'radioGroup',
+              group: 'choices',
+              position: { x: 20, y: 20 },
+              width: 10,
+              height: 10,
+            },
+            {
+              name: 'choiceB',
+              type: 'radioGroup',
+              group: 'choices',
+              position: { x: 40, y: 20 },
+              width: 10,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ choiceA: 'true', choiceB: 'true' }],
+      }),
+    );
+
+    const result = runCli([
+      'generate',
+      join(workDir, 'job.json'),
+      '-o',
+      join(workDir, 'out.pdf'),
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EVALIDATE');
+    expect(parsed.error.message).toContain('Radio group "choices"');
+    expect(parsed.error.message).toContain('choiceA, choiceB');
+    expect(parsed.error.message).toContain('at most one "true"');
+  });
+
   it('returns structured EUNSUPPORTED for unsupported custom font formats', () => {
     const workDir = join(TMP, 'unsupported-font-format');
     mkdirSync(workDir, { recursive: true });

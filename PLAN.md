@@ -62,7 +62,8 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 `multiVariableText` の first pass の次を判断する。
 
 - `inputHints` を他の特殊入力型まで広げるか決める
-- first next slice は `select` / `checkbox` の enum contract を先に揃える
+- `radioGroup` は field-local bool ではなく group-aware enum として扱う
+- `radioGroup` では `groupName` / `groupMemberNames` を返し、同一 group の複数 `true` は blocking issue にする
 - 広げるなら、型ごとの input contract を先に整理する
 - generic すぎる hint で誤解を増やさない
 
