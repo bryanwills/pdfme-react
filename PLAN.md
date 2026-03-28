@@ -4,7 +4,7 @@ Last updated: 2026-03-28 JST
 
 Latest committed checkpoint:
 
-- `8ffc8c9d` `feat(cli): extend verbose parity across commands`
+- `959fbf0c` `refactor(cli): normalize payload parity across commands`
 
 ## Purpose
 
@@ -62,6 +62,7 @@ pdfme 側で今優先するのは新機能追加ではなく、`@pdfme/cli` の 
 `multiVariableText` の first pass の次を判断する。
 
 - `inputHints` を他の特殊入力型まで広げるか決める
+- first next slice は `select` / `checkbox` の enum contract を先に揃える
 - 広げるなら、型ごとの input contract を先に整理する
 - generic すぎる hint で誤解を増やさない
 

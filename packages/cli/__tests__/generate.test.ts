@@ -323,6 +323,89 @@ describe('generate command', () => {
     expect(parsed.error.message).toContain('Received plain string "INV-001"');
   });
 
+  it('returns structured EVALIDATE when select input is outside schema options', () => {
+    const workDir = join(TMP, 'invalid-select-option');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'status',
+              type: 'select',
+              options: ['draft', 'sent'],
+              position: { x: 20, y: 20 },
+              width: 100,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ status: 'archived' }],
+      }),
+    );
+
+    const result = runCli([
+      'generate',
+      join(workDir, 'job.json'),
+      '-o',
+      join(workDir, 'out.pdf'),
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EVALIDATE');
+    expect(parsed.error.message).toContain('Field "status" (select)');
+    expect(parsed.error.message).toContain('expects one of: "draft", "sent"');
+    expect(parsed.error.message).toContain('Example: "draft"');
+    expect(parsed.error.message).toContain('Received plain string "archived"');
+  });
+
+  it('returns structured EVALIDATE when checkbox input uses a boolean', () => {
+    const workDir = join(TMP, 'invalid-checkbox-boolean');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'approved',
+              type: 'checkbox',
+              position: { x: 20, y: 20 },
+              width: 10,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ approved: true }],
+      }),
+    );
+
+    const result = runCli([
+      'generate',
+      join(workDir, 'job.json'),
+      '-o',
+      join(workDir, 'out.pdf'),
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EVALIDATE');
+    expect(parsed.error.message).toContain('Field "approved" (checkbox)');
+    expect(parsed.error.message).toContain('expects one of: "false", "true"');
+    expect(parsed.error.message).toContain('Example: "true"');
+    expect(parsed.error.message).toContain('Received boolean');
+  });
+
   it('returns structured EUNSUPPORTED for unsupported custom font formats', () => {
     const workDir = join(TMP, 'unsupported-font-format');
     mkdirSync(workDir, { recursive: true });

@@ -134,7 +134,7 @@ describe('doctor command', () => {
     expect(parsed.issues.some((issue: string) => issue.includes('Base PDF file not found'))).toBe(true);
   });
 
-  it('returns field-level input hints for multiVariableText discovery', () => {
+  it('returns field-level input hints for select, checkbox, and multiVariableText discovery', () => {
     const file = join(TMP, 'doctor-input-hints.json');
     writeFileSync(
       file,
@@ -157,6 +157,21 @@ describe('doctor command', () => {
             position: { x: 20, y: 45 },
             width: 170,
             height: 15,
+          },
+          {
+            name: 'status',
+            type: 'select',
+            options: ['draft', 'sent'],
+            position: { x: 20, y: 70 },
+            width: 170,
+            height: 15,
+          },
+          {
+            name: 'approved',
+            type: 'checkbox',
+            position: { x: 20, y: 95 },
+            width: 10,
+            height: 10,
           },
         ]],
       }),
@@ -185,6 +200,24 @@ describe('doctor command', () => {
             kind: 'jsonStringObject',
             variableNames: ['inv'],
             example: '{"inv":"INV"}',
+          },
+        }),
+        expect.objectContaining({
+          name: 'status',
+          type: 'select',
+          expectedInput: {
+            kind: 'enumString',
+            allowedValues: ['draft', 'sent'],
+            example: 'draft',
+          },
+        }),
+        expect.objectContaining({
+          name: 'approved',
+          type: 'checkbox',
+          expectedInput: {
+            kind: 'enumString',
+            allowedValues: ['false', 'true'],
+            example: 'true',
           },
         }),
       ]),
@@ -224,6 +257,45 @@ describe('doctor command', () => {
     expect(parsed.issues).toEqual(
       expect.arrayContaining([
         expect.stringContaining('Field "invoiceMeta" (multiVariableText)'),
+      ]),
+    );
+  });
+
+  it('marks unified jobs unhealthy when checkbox input uses a boolean', () => {
+    const file = join(TMP, 'doctor-invalid-checkbox-job.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'approved',
+              type: 'checkbox',
+              position: { x: 20, y: 20 },
+              width: 10,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ approved: true }],
+      }),
+    );
+
+    const result = runCli(['doctor', file, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "approved" (checkbox)'),
+      ]),
+    );
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects one of: "false", "true"'),
       ]),
     );
   });

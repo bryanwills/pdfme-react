@@ -319,7 +319,7 @@ describe('validate command', () => {
     });
   });
 
-  it('returns field-level input hints for text and multiVariableText', () => {
+  it('returns field-level input hints for text, select, checkbox, and multiVariableText', () => {
     const file = join(TMP, 'input-hints.json');
     writeFileSync(
       file,
@@ -342,6 +342,21 @@ describe('validate command', () => {
             position: { x: 20, y: 45 },
             width: 170,
             height: 15,
+          },
+          {
+            name: 'status',
+            type: 'select',
+            options: ['draft', 'sent'],
+            position: { x: 20, y: 70 },
+            width: 170,
+            height: 15,
+          },
+          {
+            name: 'approved',
+            type: 'checkbox',
+            position: { x: 20, y: 95 },
+            width: 10,
+            height: 10,
           },
         ]],
       }),
@@ -373,6 +388,105 @@ describe('validate command', () => {
             example: '{"inv":"INV"}',
           },
         }),
+        expect.objectContaining({
+          name: 'status',
+          type: 'select',
+          pages: [1],
+          expectedInput: {
+            kind: 'enumString',
+            allowedValues: ['draft', 'sent'],
+            example: 'draft',
+          },
+        }),
+        expect.objectContaining({
+          name: 'approved',
+          type: 'checkbox',
+          pages: [1],
+          expectedInput: {
+            kind: 'enumString',
+            allowedValues: ['false', 'true'],
+            example: 'true',
+          },
+        }),
+      ]),
+    );
+  });
+
+  it('marks unified jobs invalid when select input uses a value outside schema options', () => {
+    const file = join(TMP, 'job-invalid-select.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'status',
+              type: 'select',
+              options: ['draft', 'sent'],
+              position: { x: 20, y: 20 },
+              width: 170,
+              height: 15,
+            },
+          ]],
+        },
+        inputs: [{ status: 'archived' }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "status" (select)'),
+      ]),
+    );
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects one of: "draft", "sent"'),
+      ]),
+    );
+  });
+
+  it('marks unified jobs invalid when checkbox input uses a boolean', () => {
+    const file = join(TMP, 'job-invalid-checkbox.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'approved',
+              type: 'checkbox',
+              position: { x: 20, y: 20 },
+              width: 10,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ approved: true }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "approved" (checkbox)'),
+      ]),
+    );
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects one of: "false", "true"'),
       ]),
     );
   });

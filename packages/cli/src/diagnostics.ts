@@ -34,8 +34,9 @@ export interface FieldInputHint {
   pages: number[];
   required: boolean;
   expectedInput: {
-    kind: 'string' | 'jsonStringObject';
+    kind: 'string' | 'jsonStringObject' | 'enumString';
     variableNames?: string[];
+    allowedValues?: string[];
     example?: string;
   };
 }
@@ -207,6 +208,7 @@ export function collectInputHints(template: Record<string, unknown>): FieldInput
         hint.expectedInput.kind,
         hint.expectedInput.example ?? '',
         (hint.expectedInput.variableNames ?? []).join('\u0000'),
+        (hint.expectedInput.allowedValues ?? []).join('\u0000'),
       ].join('\u0001');
       const existing = hintMap.get(key);
 
@@ -239,14 +241,14 @@ export function getInputContractIssues(
   template: Record<string, unknown>,
   inputs: Record<string, unknown>[],
 ): string[] {
-  const hints = collectInputHints(template).filter((hint) => hint.type === 'multiVariableText');
+  const hints = collectInputHints(template);
   const issues: string[] = [];
 
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex] ?? {};
 
     for (const hint of hints) {
-      const issue = getMultiVariableTextInputIssue(hint, input, inputIndex);
+      const issue = getInputContractIssue(hint, input, inputIndex);
       if (issue) {
         issues.push(issue);
       }
@@ -370,6 +372,40 @@ function buildFieldInputHint(
     };
   }
 
+  if (type === 'checkbox') {
+    return {
+      name: schema.name as string,
+      type,
+      pages: [page],
+      required: schema.required === true,
+      expectedInput: {
+        kind: 'enumString',
+        allowedValues: ['false', 'true'],
+        example: 'true',
+      },
+    };
+  }
+
+  if (type === 'select') {
+    const allowedValues = getUniqueOrderedStringValues(
+      Array.isArray(schema.options) ? schema.options : [],
+    );
+
+    if (allowedValues.length > 0) {
+      return {
+        name: schema.name as string,
+        type,
+        pages: [page],
+        required: schema.required === true,
+        expectedInput: {
+          kind: 'enumString',
+          allowedValues,
+          example: allowedValues[0],
+        },
+      };
+    }
+  }
+
   return {
     name: schema.name as string,
     type,
@@ -389,6 +425,22 @@ function buildMultiVariableTextExample(variableNames: string[]): string {
   );
 }
 
+function getInputContractIssue(
+  hint: FieldInputHint,
+  input: Record<string, unknown>,
+  inputIndex: number,
+): string | null {
+  if (hint.expectedInput.kind === 'jsonStringObject') {
+    return getMultiVariableTextInputIssue(hint, input, inputIndex);
+  }
+
+  if (hint.expectedInput.kind === 'enumString') {
+    return getEnumStringInputIssue(hint, input, inputIndex);
+  }
+
+  return null;
+}
+
 function getMultiVariableTextInputIssue(
   hint: FieldInputHint,
   input: Record<string, unknown>,
@@ -404,20 +456,20 @@ function getMultiVariableTextInputIssue(
     }
 
     return buildMultiVariableTextErrorMessage({
-        hint,
-        inputIndex,
-        extra: `Missing variables: ${variableNames.join(', ')}.`,
-        example,
-      });
+      hint,
+      inputIndex,
+      extra: `Missing variables: ${variableNames.join(', ')}.`,
+      example,
+    });
   }
 
   if (typeof rawValue !== 'string') {
     return buildMultiVariableTextErrorMessage({
-        hint,
-        inputIndex,
-        extra: `Received ${describeValue(rawValue)}.`,
-        example,
-      });
+      hint,
+      inputIndex,
+      extra: `Received ${describeValue(rawValue)}.`,
+      example,
+    });
   }
 
   let parsedValue: unknown;
@@ -425,20 +477,20 @@ function getMultiVariableTextInputIssue(
     parsedValue = JSON.parse(rawValue);
   } catch {
     return buildMultiVariableTextErrorMessage({
-        hint,
-        inputIndex,
-        extra: `Received ${describeValue(rawValue)}.`,
-        example,
-      });
+      hint,
+      inputIndex,
+      extra: `Received ${describeValue(rawValue)}.`,
+      example,
+    });
   }
 
   if (typeof parsedValue !== 'object' || parsedValue === null || Array.isArray(parsedValue)) {
     return buildMultiVariableTextErrorMessage({
-        hint,
-        inputIndex,
-        extra: `Received ${describeValue(parsedValue)}.`,
-        example,
-      });
+      hint,
+      inputIndex,
+      extra: `Received ${describeValue(parsedValue)}.`,
+      example,
+    });
   }
 
   if (!hint.required || variableNames.length === 0) {
@@ -449,14 +501,48 @@ function getMultiVariableTextInputIssue(
   const missingVariables = variableNames.filter((variableName) => !values[variableName]);
   if (missingVariables.length > 0) {
     return buildMultiVariableTextErrorMessage({
-        hint,
-        inputIndex,
-        extra: `Missing variables: ${missingVariables.join(', ')}.`,
-        example,
-      });
+      hint,
+      inputIndex,
+      extra: `Missing variables: ${missingVariables.join(', ')}.`,
+      example,
+    });
   }
 
   return null;
+}
+
+function getEnumStringInputIssue(
+  hint: FieldInputHint,
+  input: Record<string, unknown>,
+  inputIndex: number,
+): string | null {
+  const rawValue = input[hint.name];
+  const allowedValues = hint.expectedInput.allowedValues ?? [];
+  const example = hint.expectedInput.example;
+
+  if (rawValue === undefined || rawValue === '') {
+    return null;
+  }
+
+  if (typeof rawValue !== 'string') {
+    return buildEnumStringErrorMessage({
+      hint,
+      inputIndex,
+      extra: `Received ${describeValue(rawValue)}.`,
+      example,
+    });
+  }
+
+  if (allowedValues.length === 0 || allowedValues.includes(rawValue)) {
+    return null;
+  }
+
+  return buildEnumStringErrorMessage({
+    hint,
+    inputIndex,
+    extra: `Received ${describeValue(rawValue)}.`,
+    example,
+  });
 }
 
 function buildMultiVariableTextErrorMessage(args: {
@@ -471,6 +557,21 @@ function buildMultiVariableTextErrorMessage(args: {
       : '';
 
   return `Field "${args.hint.name}" (multiVariableText) in input ${args.inputIndex + 1} expects a JSON string object${variableLabel}. Example: ${args.example}. ${args.extra}`;
+}
+
+function buildEnumStringErrorMessage(args: {
+  hint: FieldInputHint;
+  inputIndex: number;
+  extra: string;
+  example?: string;
+}): string {
+  const allowedValues = (args.hint.expectedInput.allowedValues ?? []).map((value) => JSON.stringify(value));
+  const allowedLabel =
+    allowedValues.length > 0 ? ` one of: ${allowedValues.join(', ')}` : ' a supported string value';
+  const exampleLabel =
+    args.example !== undefined ? ` Example: ${JSON.stringify(args.example)}.` : '';
+
+  return `Field "${args.hint.name}" (${args.hint.type}) in input ${args.inputIndex + 1} expects${allowedLabel}.${exampleLabel} ${args.extra}`.trim();
 }
 
 function describeValue(value: unknown): string {
@@ -496,6 +597,12 @@ export function getUniqueStringValues(values: unknown[]): string[] {
   return [
     ...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0)),
   ].sort();
+}
+
+function getUniqueOrderedStringValues(values: unknown[]): string[] {
+  return [
+    ...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0)),
+  ];
 }
 
 export function summarizeBasePdf(

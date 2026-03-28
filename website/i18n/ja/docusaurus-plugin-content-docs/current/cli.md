@@ -80,11 +80,11 @@ pdfme generate -t template.json -i inputs.json -o out.pdf --image --grid
 - `--verbose` の補足情報は stderr に出る
 - failure は `ok: false` の structured error を返す
 - `doctor` は command 自体が動けば `ok: true` を返し、blocking issue の有無は `healthy` で表す
-- `validate --json` / `doctor --json` は field-level の `inputHints` も返すため、plain string を期待する field と JSON string object を期待する field を事前判定できる
+- `validate --json` / `doctor --json` は field-level の `inputHints` も返すため、plain string、制約付き string enum、JSON string object のどれを期待する field かを事前判定できる
 
 そのため、CLI は automation、agent、CI gate に向いています。
 
-たとえば `multiVariableText` では、`inputHints` から expected variable names と sample JSON string payload を確認できます。
+たとえば `select` / `checkbox` では enum 形式の `allowedValues` が、`multiVariableText` では expected variable names と sample JSON string payload が返ります。
 
 ## Font Contract
 

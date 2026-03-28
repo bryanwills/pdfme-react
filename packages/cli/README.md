@@ -346,7 +346,7 @@ pdfme validate template.json -v --json
 `validate` は template 単体だけでなく unified job (`{ template, inputs, options? }`) も受理する。`--strict` を付けると warning も exit code 1 に昇格する。
 `-v, --verbose` を付けると、入力 source、mode、pages / fields、job 時の input 数、strict 条件、error / warning 件数を stderr に出す。`--json` と併用しても stdout は JSON のまま維持される。
 
-`--json` では `inputHints` も返す。これにより field ごとの期待入力形式を事前に把握できる。たとえば `text` は plain string、`multiVariableText` は JSON string object を期待する。
+`--json` では `inputHints` も返す。これにより field ごとの期待入力形式を事前に把握できる。たとえば `text` は plain string、`select` / `checkbox` は constrained string enum、`multiVariableText` は JSON string object を期待する。
 
 ```json
 [
@@ -366,6 +366,28 @@ pdfme validate template.json -v --json
       "kind": "jsonStringObject",
       "variableNames": ["inv"],
       "example": "{\"inv\":\"INV\"}"
+    }
+  },
+  {
+    "name": "status",
+    "type": "select",
+    "pages": [1],
+    "required": false,
+    "expectedInput": {
+      "kind": "enumString",
+      "allowedValues": ["draft", "sent"],
+      "example": "draft"
+    }
+  },
+  {
+    "name": "approved",
+    "type": "checkbox",
+    "pages": [1],
+    "required": false,
+    "expectedInput": {
+      "kind": "enumString",
+      "allowedValues": ["false", "true"],
+      "example": "true"
     }
   }
 ]
@@ -435,7 +457,7 @@ runtime/path の事前診断には `generate` と同じく `-o, --output`, `--fo
 `doctor` も `validate` と同様に、コマンド自体が実行できた場合は `ok: true` を返し、blocking issue の有無は `healthy` で表す。`target` は `environment` / `input` / `fonts` のいずれかになる。
 
 font payload の `explicitSources` / `implicitSources` には `needsNetwork` が含まれるため、agent は「その source が今の環境で network 前提か」を事前判定できる。
-同様に `inputHints` には field ごとの期待入力形式が含まれるため、`text` と `multiVariableText` の違いを generate 前に判定できる。
+同様に `inputHints` には field ごとの期待入力形式が含まれるため、`text` / `select` / `checkbox` / `multiVariableText` の違いを generate 前に判定できる。
 
 環境診断の例:
 
@@ -492,7 +514,7 @@ input 診断の例:
 }
 ```
 
-`multiVariableText` を含む template/job では、`inputHints` から expected variable names と JSON string 例を確認できる。
+`select` / `checkbox` では `inputHints.expectedInput.kind = "enumString"` と `allowedValues` が返る。`multiVariableText` では expected variable names と JSON string 例が返る。`generate --json` はこれらの contract から外れた入力を `EVALIDATE` で fail-fast する。
 
 ### `multiVariableText` Input Contract
 
