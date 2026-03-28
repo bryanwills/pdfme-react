@@ -649,6 +649,10 @@ function getInputContractIssue(
     return getStringMatrixInputIssue(hint, input, inputIndex);
   }
 
+  if (isCanonicalDateHint(hint)) {
+    return getCanonicalDateInputIssue(hint, input, inputIndex);
+  }
+
   return null;
 }
 
@@ -836,6 +840,55 @@ function getStringMatrixInputIssue(
   });
 }
 
+function isCanonicalDateHint(
+  hint: FieldInputHint,
+): hint is FieldInputHint & {
+  type: 'date' | 'time' | 'dateTime';
+  expectedInput: FieldInputHint['expectedInput'] & { canonicalFormat: string };
+} {
+  return (
+    (hint.type === 'date' || hint.type === 'time' || hint.type === 'dateTime') &&
+    typeof hint.expectedInput.canonicalFormat === 'string' &&
+    hint.expectedInput.canonicalFormat.length > 0
+  );
+}
+
+function getCanonicalDateInputIssue(
+  hint: FieldInputHint & {
+    type: 'date' | 'time' | 'dateTime';
+    expectedInput: FieldInputHint['expectedInput'] & { canonicalFormat: string };
+  },
+  input: Record<string, unknown>,
+  inputIndex: number,
+): string | null {
+  const rawValue = input[hint.name];
+  const example = hint.expectedInput.example;
+
+  if (rawValue === undefined || rawValue === '') {
+    return null;
+  }
+
+  if (typeof rawValue !== 'string') {
+    return buildCanonicalDateErrorMessage({
+      hint,
+      inputIndex,
+      extra: `Received ${describeValue(rawValue)}.`,
+      example,
+    });
+  }
+
+  if (isValidCanonicalDateValue(rawValue, hint.type)) {
+    return null;
+  }
+
+  return buildCanonicalDateErrorMessage({
+    hint,
+    inputIndex,
+    extra: `Received ${describeValue(rawValue)}.`,
+    example,
+  });
+}
+
 function getStringMatrixShapeIssue(value: unknown, expectedColumnCount?: number): string | null {
   if (!Array.isArray(value)) {
     return `Received ${describeValue(value)}.`;
@@ -883,6 +936,112 @@ function parseTableStringMatrix(rawValue: unknown): string[][] | null {
     return JSON.parse(rawValue) as string[][];
   } catch {
     return null;
+  }
+}
+
+function isValidCanonicalDateValue(value: string, type: 'date' | 'time' | 'dateTime'): boolean {
+  switch (type) {
+    case 'date':
+      return isValidCanonicalDate(value);
+    case 'time':
+      return isValidCanonicalTime(value);
+    case 'dateTime':
+      return isValidCanonicalDateTime(value);
+  }
+}
+
+function isValidCanonicalDate(value: string): boolean {
+  const match = value.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!match) {
+    return false;
+  }
+
+  const [, year, month, day] = match;
+  if (!isValidCalendarDate(Number(year), Number(month), Number(day))) {
+    return false;
+  }
+
+  const parsed = parseRendererDateValue(value, 'date');
+  return parsed !== null && formatCanonicalDateValue(parsed, 'date') === value;
+}
+
+function isValidCanonicalTime(value: string): boolean {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) {
+    return false;
+  }
+
+  const [, hours, minutes] = match;
+  return isValidClockTime(Number(hours), Number(minutes));
+}
+
+function isValidCanonicalDateTime(value: string): boolean {
+  const match = value.match(/^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})$/);
+  if (!match) {
+    return false;
+  }
+
+  const [, year, month, day, hours, minutes] = match;
+  if (
+    !isValidCalendarDate(Number(year), Number(month), Number(day)) ||
+    !isValidClockTime(Number(hours), Number(minutes))
+  ) {
+    return false;
+  }
+
+  const parsed = parseRendererDateValue(value, 'dateTime');
+  return parsed !== null && formatCanonicalDateValue(parsed, 'dateTime') === value;
+}
+
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false;
+  }
+
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+
+  const candidate = new Date(year, month - 1, day);
+  return (
+    candidate.getFullYear() === year &&
+    candidate.getMonth() === month - 1 &&
+    candidate.getDate() === day
+  );
+}
+
+function isValidClockTime(hours: number, minutes: number): boolean {
+  return (
+    Number.isInteger(hours) &&
+    Number.isInteger(minutes) &&
+    hours >= 0 &&
+    hours <= 23 &&
+    minutes >= 0 &&
+    minutes <= 59
+  );
+}
+
+function parseRendererDateValue(value: string, type: 'date' | 'time' | 'dateTime'): Date | null {
+  const parsed =
+    type === 'time' ? new Date(`2021-01-01T${value}`) : new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatCanonicalDateValue(date: Date, type: 'date' | 'time' | 'dateTime'): string {
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  switch (type) {
+    case 'date':
+      return `${year}/${month}/${day}`;
+    case 'time':
+      return `${hours}:${minutes}`;
+    case 'dateTime':
+      return `${year}/${month}/${day} ${hours}:${minutes}`;
   }
 }
 
@@ -935,6 +1094,28 @@ function buildStringMatrixErrorMessage(args: {
       : '';
 
   return `Field "${args.hint.name}" (${args.hint.type}) in input ${args.inputIndex + 1} expects a JSON array of string arrays${columnLabel}.${headerLabel}${exampleLabel}${compatibilityLabel} ${args.extra}`.trim();
+}
+
+function buildCanonicalDateErrorMessage(args: {
+  hint: FieldInputHint & {
+    type: 'date' | 'time' | 'dateTime';
+    expectedInput: FieldInputHint['expectedInput'] & { canonicalFormat: string };
+  };
+  inputIndex: number;
+  extra: string;
+  example?: string | string[][];
+}): string {
+  const displayFormat = args.hint.expectedInput.format;
+  const displayLabel =
+    typeof displayFormat === 'string' &&
+    displayFormat.length > 0 &&
+    displayFormat !== args.hint.expectedInput.canonicalFormat
+      ? ` Display format hint: ${displayFormat}.`
+      : '';
+  const exampleLabel =
+    args.example !== undefined ? ` Example: ${JSON.stringify(args.example)}.` : '';
+
+  return `Field "${args.hint.name}" (${args.hint.type}) in input ${args.inputIndex + 1} expects canonical stored content in format ${args.hint.expectedInput.canonicalFormat}.${displayLabel}${exampleLabel} ${args.extra}`.trim();
 }
 
 function buildRadioGroupSelectionErrorMessage(args: {

@@ -84,7 +84,7 @@ pdfme generate -t template.json -i inputs.json -o out.pdf --image --grid
 
 そのため、CLI は automation、agent、CI gate に向いています。
 
-たとえば image / signature / svg では `contentKind` が、barcode 系では `contentKind` と human-readable な `rule` が、table では `columnCount` / `columnHeaders` / `acceptsJsonString` が、date 系では `format` と `canonicalFormat` が、`select` / `checkbox` では enum 形式の `allowedValues` が、`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が、`multiVariableText` では expected variable names と sample JSON string payload が返ります。
+たとえば image / signature / svg では `contentKind` が、barcode 系では `contentKind` と human-readable な `rule` が、table では `columnCount` / `columnHeaders` / `acceptsJsonString` が、date 系では `format` と `canonicalFormat` が返り、actual input も canonical stored content 基準で validate されます。`select` / `checkbox` では enum 形式の `allowedValues` が、`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が、`multiVariableText` では expected variable names と sample JSON string payload が返ります。
 
 ## Font Contract
 

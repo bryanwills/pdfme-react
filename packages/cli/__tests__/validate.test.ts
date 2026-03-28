@@ -10,13 +10,14 @@ const TMP = join(__dirname, '..', '.test-tmp');
 
 function runCli(
   args: string[],
-  options: { input?: string } = {},
+  options: { input?: string; env?: NodeJS.ProcessEnv } = {},
 ): { stdout: string; stderr: string; exitCode: number } {
   try {
     const stdout = execFileSync('node', [CLI, ...args], {
       encoding: 'utf8',
       timeout: 30000,
       input: options.input,
+      env: options.env,
     });
     return { stdout, stderr: '', exitCode: 0 };
   } catch (error: any) {
@@ -806,6 +807,124 @@ describe('validate command', () => {
     expect(parsed.errors).toEqual(
       expect.arrayContaining([
         expect.stringContaining('expects one of: "false", "true"'),
+      ]),
+    );
+  });
+
+  it('accepts canonical stored date input even when schema format differs', () => {
+    const file = join(TMP, 'job-valid-date-canonical.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'dueDate',
+              type: 'date',
+              format: 'dd/MM/yyyy',
+              position: { x: 20, y: 20 },
+              width: 30,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ dueDate: '2026/03/28' }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(0);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(true);
+    expect(parsed.errors).toEqual([]);
+  });
+
+  it('marks unified jobs invalid when date input uses display format instead of canonical stored content', () => {
+    const file = join(TMP, 'job-invalid-date-display-format.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'dueDate',
+              type: 'date',
+              format: 'dd/MM/yyyy',
+              position: { x: 20, y: 20 },
+              width: 30,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ dueDate: '28/03/2026' }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json']);
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "dueDate" (date)'),
+      ]),
+    );
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects canonical stored content in format yyyy/MM/dd'),
+      ]),
+    );
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Display format hint: dd/MM/yyyy.'),
+      ]),
+    );
+  });
+
+  it('marks unified jobs invalid when dateTime input falls into a DST gap under renderer parsing semantics', () => {
+    const file = join(TMP, 'job-invalid-date-time-dst-gap.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'publishedAt',
+              type: 'dateTime',
+              format: 'MM/dd/yyyy HH:mm',
+              position: { x: 20, y: 20 },
+              width: 40,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ publishedAt: '2026/03/08 02:30' }],
+      }),
+    );
+
+    const result = runCli(['validate', file, '--json'], {
+      env: { ...process.env, TZ: 'America/New_York' },
+    });
+    expect(result.exitCode).toBe(1);
+
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.valid).toBe(false);
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "publishedAt" (dateTime)'),
+      ]),
+    );
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects canonical stored content in format yyyy/MM/dd HH:mm'),
       ]),
     );
   });

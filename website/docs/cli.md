@@ -87,7 +87,7 @@ When you pass `--json`:
 
 This makes the CLI suitable for automation, agents, and CI gates.
 
-For example, image/signature/svg fields expose `contentKind`, barcode fields expose `contentKind` plus a human-readable `rule`, table fields expose `columnCount`, `columnHeaders`, and `acceptsJsonString`, date fields expose `format` and `canonicalFormat`, `select` and `checkbox` expose enum-style `allowedValues`, `radioGroup` adds `groupName` and `groupMemberNames`, and `multiVariableText` exposes expected variable names and a sample JSON string payload.
+For example, image/signature/svg fields expose `contentKind`, barcode fields expose `contentKind` plus a human-readable `rule`, table fields expose `columnCount`, `columnHeaders`, and `acceptsJsonString`, date fields expose `format` and `canonicalFormat` and are validated against canonical stored content, `select` and `checkbox` expose enum-style `allowedValues`, `radioGroup` adds `groupName` and `groupMemberNames`, and `multiVariableText` exposes expected variable names and a sample JSON string payload.
 
 ## Font Contract
 

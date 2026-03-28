@@ -273,9 +273,11 @@ export default defineCommand({
               target: 'fonts',
               healthy: diagnosis.healthy,
               mode: source.mode,
+              templatePageCount: diagnosis.validation.pages,
+              fieldCount: diagnosis.validation.fields,
               ...(source.mode === 'job' ? { inputCount: source.inputs?.length ?? 0 } : {}),
               environment,
-              validation: diagnosis.validation,
+              validation: createValidationPayload(diagnosis.validation),
               inspection: {
                 schemaTypes: diagnosis.inspection.schemaTypes,
                 requiredPlugins: diagnosis.inspection.requiredPlugins,
@@ -299,7 +301,7 @@ export default defineCommand({
               ...(source.mode === 'job' ? { inputCount: source.inputs?.length ?? 0 } : {}),
               estimatedPageCount: diagnosis.runtimeDiagnosis.estimatedPages,
               environment,
-              validation: diagnosis.validation,
+              validation: createValidationPayload(diagnosis.validation),
               inspection: diagnosis.inspection,
               inputHints: collectInputHints(source.template),
               diagnosis: {
@@ -432,6 +434,14 @@ function buildInputDiagnosis(
     issues,
     warnings,
     healthy: issues.length === 0,
+  };
+}
+
+function createValidationPayload(validation: InputDiagnosis['validation']): Record<string, unknown> {
+  return {
+    valid: validation.valid,
+    errors: validation.errors,
+    warnings: validation.warnings,
   };
 }
 
@@ -824,11 +834,6 @@ function printDoctorEnvironmentVerbose(
 
 function printInputReport(payload: Record<string, unknown>): void {
   const healthy = Boolean(payload.healthy);
-  const validation = payload.validation as {
-    valid: boolean;
-    pages: number;
-    fields: number;
-  };
   const inspection = payload.inspection as {
     schemaTypes: string[];
   };
@@ -840,8 +845,8 @@ function printInputReport(payload: Record<string, unknown>): void {
 
   console.log(healthy ? '\u2713 Doctor checks passed' : '\u2717 Doctor found blocking issues');
   console.log(`Mode: ${payload.mode}`);
-  console.log(`Template pages: ${validation.pages}`);
-  console.log(`Fields: ${validation.fields}`);
+  console.log(`Template pages: ${payload.templatePageCount}`);
+  console.log(`Fields: ${payload.fieldCount}`);
   console.log(`Schema types: ${inspection.schemaTypes.join(', ') || '(none)'}`);
   if (diagnosis.runtime) {
     console.log(

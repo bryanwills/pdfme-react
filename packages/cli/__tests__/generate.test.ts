@@ -527,6 +527,86 @@ describe('generate command', () => {
     expect(parsed.error.message).toContain('at most one "true"');
   });
 
+  it('returns structured EVALIDATE when time input is not valid canonical stored content', () => {
+    const workDir = join(TMP, 'invalid-time-canonical-content');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'appointmentTime',
+              type: 'time',
+              format: 'HH:mm',
+              position: { x: 20, y: 20 },
+              width: 20,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ appointmentTime: '24:61' }],
+      }),
+    );
+
+    const result = runCli([
+      'generate',
+      join(workDir, 'job.json'),
+      '-o',
+      join(workDir, 'out.pdf'),
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EVALIDATE');
+    expect(parsed.error.message).toContain('Field "appointmentTime" (time)');
+    expect(parsed.error.message).toContain('expects canonical stored content in format HH:mm');
+    expect(parsed.error.message).toContain('Example: "14:30"');
+    expect(parsed.error.message).toContain('Received plain string "24:61"');
+  });
+
+  it('returns structured EVALIDATE when dateTime input falls into a DST gap under renderer parsing semantics', () => {
+    const workDir = join(TMP, 'invalid-date-time-dst-gap');
+    mkdirSync(workDir, { recursive: true });
+
+    writeFileSync(
+      join(workDir, 'job.json'),
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'publishedAt',
+              type: 'dateTime',
+              format: 'MM/dd/yyyy HH:mm',
+              position: { x: 20, y: 20 },
+              width: 40,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ publishedAt: '2026/03/08 02:30' }],
+      }),
+    );
+
+    const result = runCli(
+      ['generate', join(workDir, 'job.json'), '-o', join(workDir, 'out.pdf'), '--json'],
+      { env: { ...process.env, TZ: 'America/New_York' } },
+    );
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe('EVALIDATE');
+    expect(parsed.error.message).toContain('Field "publishedAt" (dateTime)');
+    expect(parsed.error.message).toContain('expects canonical stored content in format yyyy/MM/dd HH:mm');
+    expect(parsed.error.message).toContain('Received plain string "2026/03/08 02:30"');
+  });
+
   it('returns structured EUNSUPPORTED for unsupported custom font formats', () => {
     const workDir = join(TMP, 'unsupported-font-format');
     mkdirSync(workDir, { recursive: true });

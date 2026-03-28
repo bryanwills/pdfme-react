@@ -83,6 +83,11 @@ describe('doctor command', () => {
     expect(parsed.templatePageCount).toBe(1);
     expect(parsed.fieldCount).toBe(1);
     expect(parsed.target).toBe('input');
+    expect(parsed.validation).toEqual({
+      valid: true,
+      errors: [],
+      warnings: [],
+    });
     expect(result.stderr).toContain('Target: input');
     expect(result.stderr).toContain(`Input: ${file}`);
     expect(result.stderr).toContain('Mode: template');
@@ -478,6 +483,93 @@ describe('doctor command', () => {
     );
   });
 
+  it('marks unified jobs unhealthy when dateTime input is not valid canonical stored content', () => {
+    const file = join(TMP, 'doctor-invalid-date-time-job.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'publishedAt',
+              type: 'dateTime',
+              format: 'dd/MM/yyyy HH:mm',
+              position: { x: 20, y: 20 },
+              width: 40,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ publishedAt: '2026/02/30 14:30' }],
+      }),
+    );
+
+    const result = runCli(['doctor', file, '--json']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "publishedAt" (dateTime)'),
+      ]),
+    );
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects canonical stored content in format yyyy/MM/dd HH:mm'),
+      ]),
+    );
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Display format hint: dd/MM/yyyy HH:mm.'),
+      ]),
+    );
+  });
+
+  it('marks unified jobs unhealthy when dateTime input falls into a DST gap under renderer parsing semantics', () => {
+    const file = join(TMP, 'doctor-invalid-date-time-dst-gap-job.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        template: {
+          basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+          schemas: [[
+            {
+              name: 'publishedAt',
+              type: 'dateTime',
+              format: 'MM/dd/yyyy HH:mm',
+              position: { x: 20, y: 20 },
+              width: 40,
+              height: 10,
+            },
+          ]],
+        },
+        inputs: [{ publishedAt: '2026/03/08 02:30' }],
+      }),
+    );
+
+    const result = runCli(['doctor', file, '--json'], {
+      env: { ...process.env, TZ: 'America/New_York' },
+    });
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.healthy).toBe(false);
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Field "publishedAt" (dateTime)'),
+      ]),
+    );
+    expect(parsed.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('expects canonical stored content in format yyyy/MM/dd HH:mm'),
+      ]),
+    );
+  });
+
   it('marks unified jobs unhealthy when table input contains a non-string cell', () => {
     const file = join(TMP, 'doctor-invalid-table-job.json');
     writeFileSync(
@@ -685,6 +777,8 @@ describe('doctor command', () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.target).toBe('fonts');
     expect(parsed.healthy).toBe(true);
+    expect(parsed.templatePageCount).toBe(1);
+    expect(parsed.fieldCount).toBe(1);
     expect(parsed.diagnosis.fonts.explicitSources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

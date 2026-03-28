@@ -548,8 +548,6 @@ input 診断の例:
   "estimatedPageCount": 1,
   "validation": {
     "valid": true,
-    "pages": 1,
-    "fields": 1,
     "errors": [],
     "warnings": []
   },
@@ -573,7 +571,7 @@ input 診断の例:
 }
 ```
 
-`image` / `signature` / `svg` では `kind = "string"` のまま、`contentKind` で `imageDataUrl` / `signatureImageDataUrl` / `svgMarkup` を返す。barcode 系では `contentKind = "barcodeText"` と human-readable な `rule` を返す。`table` では `inputHints.expectedInput.kind = "stringMatrix"` と `columnCount` / `columnHeaders` が返る。canonical input は `string[][]` の nested JSON array で、`acceptsJsonString: true` のときは後方互換として JSON string も受理する。`date` / `time` / `dateTime` では `format` と `canonicalFormat` が返る。`example` は current CLI が期待する canonical stored content 例で、`format` は schema 側の format ベースの hint を示す。`select` / `checkbox` では `inputHints.expectedInput.kind = "enumString"` と `allowedValues` が返る。`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が返り、同じ group 内で複数 field を `"true"` にすると `generate --json` / `validate --json` / `doctor --json` は `EVALIDATE` 相当で fail-fast する。`multiVariableText` では expected variable names と JSON string 例が返る。
+`image` / `signature` / `svg` では `kind = "string"` のまま、`contentKind` で `imageDataUrl` / `signatureImageDataUrl` / `svgMarkup` を返す。barcode 系では `contentKind = "barcodeText"` と human-readable な `rule` を返す。`table` では `inputHints.expectedInput.kind = "stringMatrix"` と `columnCount` / `columnHeaders` が返る。canonical input は `string[][]` の nested JSON array で、`acceptsJsonString: true` のときは後方互換として JSON string も受理する。`date` / `time` / `dateTime` では `format` と `canonicalFormat` が返る。`example` は current CLI が期待する canonical stored content 例で、`format` は schema 側の format ベースの hint を示す。date 系の actual input validation も canonical stored content 基準で行う。`select` / `checkbox` では `inputHints.expectedInput.kind = "enumString"` と `allowedValues` が返る。`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が返り、同じ group 内で複数 field を `"true"` にすると `generate --json` / `validate --json` / `doctor --json` は `EVALIDATE` 相当で fail-fast する。`multiVariableText` では expected variable names と JSON string 例が返る。
 
 ### `multiVariableText` Input Contract
 
