@@ -125,7 +125,6 @@ export const useUIPreProcessor = ({ template, size, zoomLevel, maxZoom }: UIPreP
           setError(error);
           console.error('[@pdfme/ui]', error);
         }
-        throw error;
       }
     },
     [init],
