@@ -92,15 +92,17 @@ const TemplateEditor = ({
     setHoveringSchemaId(null);
   };
 
-  // Update component state only when _options_ changes
   useEffect(() => {
-    if (typeof options.zoomLevel === 'number' && options.zoomLevel !== zoomLevel) {
+    if (typeof options.zoomLevel === 'number') {
       setZoomLevel(options.zoomLevel);
     }
-    if (typeof options.sidebarOpen === 'boolean' && options.sidebarOpen !== sidebarOpen) {
+  }, [options.zoomLevel]);
+
+  useEffect(() => {
+    if (typeof options.sidebarOpen === 'boolean') {
       setSidebarOpen(options.sidebarOpen);
     }
-  }, [options, sidebarOpen, zoomLevel]);
+  }, [options.sidebarOpen]);
 
   useScrollPageCursor({
     ref: canvasRef,

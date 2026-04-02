@@ -28,18 +28,7 @@ const examplesArgs = {
 };
 
 function generateSampleInputs(template: Record<string, unknown>): Record<string, string>[] {
-  const schemas = template.schemas as Record<string, unknown>[][] | undefined;
-  if (!Array.isArray(schemas) || schemas.length === 0) return [{}];
-
-  const firstPage = schemas[0];
-  const fields: Record<string, unknown>[] = Array.isArray(firstPage)
-    ? (firstPage as Record<string, unknown>[])
-    : typeof firstPage === 'object' && firstPage !== null
-      ? Object.entries(firstPage).map(([name, schema]) => ({
-          ...(typeof schema === 'object' && schema !== null ? schema : {}),
-          name,
-        }))
-      : [];
+  const fields = normalizeSchemaPages(template.schemas).flat();
 
   if (fields.length === 0) return [{}];
 
@@ -241,9 +230,16 @@ function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<string, u
     }
 
     if (typeof page === 'object' && page !== null) {
-      return Object.values(page).filter(
-        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
-      );
+      return Object.entries(page)
+        .map(([name, schema]) =>
+          typeof schema === 'object' && schema !== null
+            ? ({ ...schema, name: (schema as Record<string, unknown>).name ?? name } as Record<
+                string,
+                unknown
+              >)
+            : null,
+        )
+        .filter((schema): schema is Record<string, unknown> => schema !== null);
     }
 
     return [];

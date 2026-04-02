@@ -231,6 +231,68 @@ describe('examples command', () => {
     expect(written.inputs).toEqual([{ title: 'Sample title' }]);
   });
 
+  it('includes editable fields from every template page in generated sample inputs', async () => {
+    process.env.PDFME_EXAMPLES_BASE_URL = 'https://fixtures.example.com/template-assets';
+    mkdirSync(TMP, { recursive: true });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+
+        if (url.endsWith('/manifest.json')) {
+          return new Response(
+            JSON.stringify({
+              schemaVersion: 1,
+              cliVersion: '0.1.0-alpha.0',
+              templates: [{ name: 'multi-page', path: 'multi-page/template.json' }],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+
+        if (url.endsWith('/multi-page/template.json')) {
+          return new Response(
+            JSON.stringify({
+              basePdf: { width: 210, height: 297, padding: [20, 20, 20, 20] },
+              schemas: [
+                [
+                  { name: 'page1', type: 'text', content: 'Page 1' },
+                  { name: 'readonly', type: 'text', content: 'Locked', readOnly: true },
+                ],
+                {
+                  page2: { type: 'text', content: 'Page 2' },
+                  page2Readonly: { type: 'text', content: 'Locked 2', readOnly: true },
+                },
+                [{ name: 'page3', type: 'text' }],
+              ],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      }),
+    );
+
+    const outputPath = join(TMP, 'multi-page-job.json');
+
+    await examplesCmd.run!({
+      args: {
+        list: false,
+        name: 'multi-page',
+        output: outputPath,
+        withInputs: true,
+        json: true,
+      },
+      rawArgs: [],
+      cmd: examplesCmd,
+    } as never);
+
+    const written = JSON.parse(readFileSync(outputPath, 'utf8'));
+    expect(written.inputs).toEqual([{ page1: 'Page 1', page2: 'Page 2', page3: 'Sample page3' }]);
+  });
+
   it('embeds official example font URLs into unified jobs', async () => {
     process.env.PDFME_EXAMPLES_BASE_URL = 'https://fixtures.example.com/template-assets';
     mkdirSync(TMP, { recursive: true });

@@ -33,6 +33,13 @@ const signature: Plugin<SignatureSchema> = {
       context.scale(resetScale, resetScale);
 
       const signaturePad = new SignaturePad(canvas);
+      const handleEndStroke = () => {
+        const data = signaturePad.toDataURL('image/png');
+        if (onChange && data) {
+          onChange({ key: 'content', value: data });
+        }
+      };
+
       try {
         if (value) {
           void signaturePad.fromDataURL(value, { ratio: resetScale });
@@ -48,21 +55,27 @@ const signature: Plugin<SignatureSchema> = {
       } else {
         signaturePad.on();
         const clearButton = document.createElement('button');
-        clearButton.style.position = 'absolute';
-        clearButton.style.zIndex = '1';
-        clearButton.textContent = i18n('signature.clear') || 'x';
-        clearButton.addEventListener('click', () => {
+        const handleClear = () => {
           if (onChange) {
             onChange({ key: 'content', value: '' });
           }
-        });
+        };
+        const cleanup = () => {
+          signaturePad.off();
+          signaturePad.removeEventListener('endStroke', handleEndStroke);
+          clearButton.removeEventListener('click', handleClear);
+          clearButton.remove();
+          rootElement.removeEventListener('beforeRemove', cleanup);
+        };
+
+        rootElement.addEventListener('beforeRemove', cleanup);
+        clearButton.type = 'button';
+        clearButton.style.position = 'absolute';
+        clearButton.style.zIndex = '1';
+        clearButton.textContent = i18n('signature.clear') || 'x';
+        clearButton.addEventListener('click', handleClear);
         rootElement.appendChild(clearButton);
-        signaturePad.addEventListener('endStroke', () => {
-          const data = signaturePad.toDataURL('image/png');
-          if (onChange && data) {
-            onChange({ key: 'content', value: data });
-          }
-        });
+        signaturePad.addEventListener('endStroke', handleEndStroke);
       }
     }
 

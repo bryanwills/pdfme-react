@@ -112,12 +112,11 @@ const Preview = ({
       .catch((err) => console.error(`[@pdfme/ui] `, err));
   }, []);
 
-  // Update component state only when _options_ changes
   useEffect(() => {
-    if (typeof options.zoomLevel === 'number' && options.zoomLevel !== zoomLevel) {
+    if (typeof options.zoomLevel === 'number') {
       setZoomLevel(options.zoomLevel);
     }
-  }, [options, zoomLevel]);
+  }, [options.zoomLevel]);
 
   useEffect(() => {
     if (unitCursor > inputs.length - 1) {

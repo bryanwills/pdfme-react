@@ -75,9 +75,11 @@ export const useUIPreProcessor = ({ template, size, zoomLevel, maxZoom }: UIPreP
           return buffer;
         };
 
-        // Run sequentially with isolated buffers to avoid pdf.js worker races and buffer detachment.
-        const _pages = await pdf2size(createPdfArrayBuffer());
-        const imgBuffers = await pdf2img(createPdfArrayBuffer(), { scale: maxZoom });
+        const [pageSizeBuffer, imageBuffer] = [createPdfArrayBuffer(), createPdfArrayBuffer()];
+        const [_pages, imgBuffers] = await Promise.all([
+          pdf2size(pageSizeBuffer),
+          pdf2img(imageBuffer, { scale: maxZoom }),
+        ]);
         _pageSizes = _pages;
         paperWidth = _pageSizes[0].width * ZOOM;
         paperHeight = _pageSizes[0].height * ZOOM;

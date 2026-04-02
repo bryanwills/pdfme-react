@@ -189,6 +189,7 @@ const Renderer = (props: RendererProps) => {
     return () => {
       cancelled = true;
       if (element) {
+        element.dispatchEvent(new Event('beforeRemove'));
         element.innerHTML = '';
         delete element.dataset.pdfmeRenderReady;
       }

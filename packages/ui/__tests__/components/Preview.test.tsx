@@ -1,7 +1,7 @@
 import React from 'react';
-import { render, act, waitFor } from '@testing-library/react';
+import { render, act, fireEvent, waitFor } from '@testing-library/react';
 import Preview from '../../src/components/Preview';
-import { I18nContext, FontContext, PluginsRegistry } from '../../src/contexts';
+import { I18nContext, FontContext, OptionsContext, PluginsRegistry } from '../../src/contexts';
 import { i18n } from '../../src/i18n';
 import { SELECTABLE_CLASSNAME } from '../../src/constants';
 import { getDefaultFont, pluginRegistry } from '@pdfme/common';
@@ -69,4 +69,34 @@ test('Preview(as Form) snapshot', async () => {
     expect(renderedElements.length).toBe(selectableElements.length);
   });
   expect(normalizeElementIdsForSnapshot(container)).toMatchSnapshot();
+});
+
+test('Preview keeps toolbar zoom interactive when options.zoomLevel is only an initial value', async () => {
+  setupUIMock();
+  const { container } = render(
+    <I18nContext.Provider value={i18n}>
+      <FontContext.Provider value={getDefaultFont()}>
+        <PluginsRegistry.Provider value={plugins}>
+          <OptionsContext.Provider value={{ zoomLevel: 1 }}>
+            <Preview
+              template={getSampleTemplate()}
+              inputs={[{ field1: 'field1', field2: 'field2' }]}
+              size={{ width: 1200, height: 1200 }}
+            />
+          </OptionsContext.Provider>
+        </PluginsRegistry.Provider>
+      </FontContext.Provider>
+    </I18nContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(container.querySelectorAll('[data-pdfme-render-ready="true"]').length).toBeGreaterThan(0);
+  });
+
+  expect(container).toHaveTextContent('100%');
+  fireEvent.click(container.querySelector('.pdfme-ui-zoom-in')!);
+
+  await waitFor(() => {
+    expect(container).toHaveTextContent('125%');
+  });
 });
