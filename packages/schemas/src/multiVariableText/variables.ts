@@ -4,6 +4,8 @@ export type VariableMatch = {
   endIndex: number;
 };
 
+export type VariableIndices = Map<number, string>;
+
 export const visitVariables = (
   content: string,
   visitor: (match: VariableMatch) => void,
@@ -14,7 +16,8 @@ export const visitVariables = (
     const char = content[i];
 
     if (char === '{') {
-      // Restart from the latest opener so malformed input never needs backtracking.
+      // Restart from the latest opener so malformed input behaves like /{([^{}]+)}/g
+      // without requiring backtracking.
       startIndex = i;
       continue;
     }
@@ -29,11 +32,11 @@ export const visitVariables = (
   }
 };
 
-export const getVariableIndices = (content: string): Array<string | undefined> => {
-  const indices: Array<string | undefined> = [];
+export const getVariableIndices = (content: string): VariableIndices => {
+  const indices: VariableIndices = new Map();
 
   visitVariables(content, ({ name, startIndex }) => {
-    indices[startIndex] = name;
+    indices.set(startIndex, name);
   });
 
   return indices;

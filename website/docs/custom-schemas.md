@@ -6,6 +6,10 @@ These can be loaded as plugins from the `@pdfme/schemas` package.
 You can also create your own schemas and load them similarly as plugins.
 This page explains how to use schemas from `@pdfme/schemas` and how to create your own.
 
+:::note
+The default plugin registry used by `@pdfme/generator` and `@pdfme/ui` intentionally includes only the `text` schema. If your template uses any other built-in schema type, import it from `@pdfme/schemas` and pass it through `plugins`.
+:::
+
 ## Using Schemas from @pdfme/schemas
 
 Here, we explain how to import image, signature, and QR code schemas from `@pdfme/schemas`.

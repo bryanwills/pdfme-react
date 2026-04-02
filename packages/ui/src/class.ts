@@ -1,5 +1,4 @@
 import { ReactNode } from 'react';
-import { flushSync } from 'react-dom';
 import { createRoot, Root } from 'react-dom/client';
 import { DESTROYED_ERR_MSG, DEFAULT_LANG } from './constants.js';
 import { debounce } from './helper.js';
@@ -145,9 +144,7 @@ export abstract class BaseUIClass {
   protected mount(node: ReactNode) {
     if (!this.domContainer) throw Error(DESTROYED_ERR_MSG);
     this.reactRoot ??= createRoot(this.domContainer);
-    flushSync(() => {
-      this.reactRoot!.render(node);
-    });
+    this.reactRoot.render(node);
   }
 
   protected abstract render(): void;

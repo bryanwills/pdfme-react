@@ -67,12 +67,16 @@ describe('multiVariableText variable scanning', () => {
   it('should record variable start indices for well-formed placeholders', () => {
     const indices = getVariableIndices('{first} {second}');
 
-    expect(indices[0]).toBe('first');
-    expect(indices[8]).toBe('second');
+    expect(indices.get(0)).toBe('first');
+    expect(indices.get(8)).toBe('second');
   });
 
   it('should restart from the latest opening brace in malformed input', () => {
     expect(getVariableNames('Hello {{name}}')).toEqual(['name']);
+  });
+
+  it('should match the innermost completed placeholder when braces are nested', () => {
+    expect(getVariableNames('{a{b}')).toEqual(['b']);
   });
 
   it('should count only unique completed variable names', () => {

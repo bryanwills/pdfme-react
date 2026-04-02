@@ -9,6 +9,7 @@ This document tracks the breaking changes planned for the next major release and
 | `ESM-only` packages               | Anyone using `require('@pdfme/...')`                           | Move to `import` / `export` syntax     |
 | `Node 20+` minimum runtime        | Node 16 / 18 users                                             | Upgrade to Node 20 LTS or newer        |
 | Internal `dist/*` imports removed | Anyone importing `@pdfme/*/dist/...` or `@pdfme/*/cjs/src/...` | Import only from package root exports  |
+| Text-only default plugin registry | Anyone relying on implicit non-text schema support             | Import non-text plugins explicitly     |
 
 ## Support Policy
 
@@ -66,6 +67,37 @@ import { pdf2img } from '@pdfme/converter';
 ### Node 20+
 
 Update local development and CI to Node 20 LTS or newer before adopting the next major release.
+
+### Text-only Default Plugin Registry
+
+`@pdfme/generator`, `Designer`, `Form`, and `Viewer` now treat the default built-in plugin registry as text-only. Non-text schema types such as `image`, `signature`, `table`, barcodes, `select`, `radioGroup`, and `checkbox` must be imported from `@pdfme/schemas` and passed through `plugins`.
+
+Before:
+
+```ts
+import { generate } from '@pdfme/generator';
+
+await generate({ template, inputs });
+```
+
+After:
+
+```ts
+import { generate } from '@pdfme/generator';
+import { text, image, signature, table, barcodes } from '@pdfme/schemas';
+
+await generate({
+  template,
+  inputs,
+  plugins: {
+    text,
+    image,
+    signature,
+    table,
+    qrcode: barcodes.qrcode,
+  },
+});
+```
 
 ## Maintainer Checklist
 

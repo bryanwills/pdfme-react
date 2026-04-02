@@ -4,6 +4,25 @@ import image from './image.js';
 
 type SignatureSchema = Schema;
 
+const createLoadErrorBadge = (message: string) => {
+  const badge = document.createElement('div');
+  badge.setAttribute('role', 'alert');
+  badge.textContent = message;
+  badge.style.position = 'absolute';
+  badge.style.left = '4px';
+  badge.style.right = '4px';
+  badge.style.bottom = '4px';
+  badge.style.zIndex = '2';
+  badge.style.padding = '4px 6px';
+  badge.style.borderRadius = '4px';
+  badge.style.background = 'rgba(176, 0, 32, 0.92)';
+  badge.style.color = '#ffffff';
+  badge.style.fontSize = '11px';
+  badge.style.lineHeight = '1.25';
+  badge.style.pointerEvents = 'none';
+  return badge;
+};
+
 const getEffectiveScale = (element: HTMLElement | null) => {
   let scale = 1;
   while (element && element !== document.body) {
@@ -33,7 +52,22 @@ const signature: Plugin<SignatureSchema> = {
       context.scale(resetScale, resetScale);
 
       const signaturePad = new SignaturePad(canvas);
+      const loadErrorMessage =
+        i18n('signature.invalidData') || 'Saved signature could not be loaded.';
+      let loadErrorBadge: HTMLDivElement | null = null;
+      const clearLoadError = () => {
+        loadErrorBadge?.remove();
+        loadErrorBadge = null;
+      };
+      const showLoadError = () => {
+        if (loadErrorBadge) {
+          return;
+        }
+        loadErrorBadge = createLoadErrorBadge(loadErrorMessage);
+        rootElement.appendChild(loadErrorBadge);
+      };
       const handleEndStroke = () => {
+        clearLoadError();
         const data = signaturePad.toDataURL('image/png');
         if (onChange && data) {
           onChange({ key: 'content', value: data });
@@ -42,12 +76,14 @@ const signature: Plugin<SignatureSchema> = {
 
       try {
         if (value) {
-          void signaturePad.fromDataURL(value, { ratio: resetScale });
+          signaturePad.fromDataURL(value, { ratio: resetScale });
         } else {
           signaturePad.clear();
         }
       } catch (error) {
-        console.error(error);
+        signaturePad.clear();
+        showLoadError();
+        console.error('[@pdfme/schemas] Failed to restore saved signature data.', error);
       }
 
       if (mode === 'viewer' || (mode === 'form' && schema.readOnly)) {
@@ -56,11 +92,13 @@ const signature: Plugin<SignatureSchema> = {
         signaturePad.on();
         const clearButton = document.createElement('button');
         const handleClear = () => {
+          clearLoadError();
           if (onChange) {
             onChange({ key: 'content', value: '' });
           }
         };
         const cleanup = () => {
+          clearLoadError();
           signaturePad.off();
           signaturePad.removeEventListener('endStroke', handleEndStroke);
           clearButton.removeEventListener('click', handleClear);

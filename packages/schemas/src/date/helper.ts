@@ -73,6 +73,8 @@ interface Locale {
 const normalizeAdLocale = (
   locale: AirDatepickerLocale | { default: AirDatepickerLocale },
 ): AirDatepickerLocale => {
+  // Air Datepicker locales can arrive as either the locale object itself or as an
+  // ESM default export shim when bundlers interop with the package's CJS build.
   return 'default' in locale ? locale.default : locale;
 };
 

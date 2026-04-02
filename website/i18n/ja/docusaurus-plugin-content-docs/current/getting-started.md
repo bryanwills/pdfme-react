@@ -84,9 +84,9 @@ basePdf: { "width": 210, "height": 297, "padding": [10, 10, 10, 10] }
 ```
 
 
-**schemas**はデフォルトではテキストのみ使用できますが、`@pdfme/schemas`パッケージからプラグインとして画像やQRコードなどの様々なバーコードを読み込むことができます。  
-さらに、独自のスキーマを作成することで、上記以外の種類をレンダリングすることも可能です。  
-詳細は[カスタムスキーマ](/docs/custom-schemas)をご覧ください。
+**schemas**はデフォルトではテキストのみ使用できます。`generate`、`Designer`、`Form`、`Viewer` が使うデフォルトのプラグインレジストリには、意図的に `text` スキーマだけが含まれています。  
+画像、署名、テーブル、QRコードなどのバーコード、その他のスキーマタイプを使う場合は、`@pdfme/schemas` から対象プラグインを明示的に import し、`plugins` オプションで渡してください。  
+さらに、独自のスキーマを作成することで、上記以外の種類をレンダリングすることも可能です。詳細は[カスタムスキーマ](/docs/custom-schemas)と、既存コードを更新する場合の [v6 migration guide](/docs/migration-v6#text-only-default-plugin-registry) をご覧ください。
 
 具体的なデータを見てみましょう。  
 （TypeScriptを使用している場合は、Template型をインポートできます。）

@@ -95,7 +95,7 @@ const formUiRender = async (arg: UIRenderProps<MultiVariableTextSchema>) => {
   let inVarString = false;
 
   for (let i = 0; i < rawText.length; i++) {
-    const variableName = variableIndices[i];
+    const variableName = variableIndices.get(i);
 
     if (variableName) {
       inVarString = true;
