@@ -3,9 +3,11 @@
 - Clone the repository
 - install dependency with `npm install`
 - build the packages with `npm run build`
+- if you need package-local `npm link` wiring for a specific workflow, run `npm run link-workspaces`
 
 ```cmd
 [in pdfme dir] $ npm install
+[in pdfme dir] $ npm run link-workspaces # optional
 [in pdfme dir] $ npm run build
 ```
 
