@@ -32,8 +32,8 @@ jobs:
             package-lock.json
             playground/package-lock.json
 
-      - name: Update npm (11.5.1+ required for OIDC)
-        run: npm install -g npm@latest
+      - name: Use npm 11.12.1
+        run: npm install -g npm@11.12.1
 
       - name: Determine version and tag
         run: |
@@ -86,6 +86,9 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             playground/package-lock.json
+
+      - name: Use npm 11.12.1
+        run: npm install -g npm@11.12.1
 
       - name: Install dependencies and build project
         run: |

@@ -55,5 +55,5 @@
     "vitest": "^4.1.0",
     "vitest-image-snapshot": "^0.6.47"
   },
-  "packageManager": "npm@11.6.2"
+  "packageManager": "npm@11.12.1"
 }
