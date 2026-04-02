@@ -37,8 +37,7 @@
   },
   "scripts": {
     "dev": "node set-version.js && vite build --watch",
-    "prebuild": "node set-version.js",
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "node set-version.js && vite build && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "lint": "vp lint -c ../../.oxlintrc.json src",
     "fmt": "vp fmt -c ../../.oxfmtrc.json src --write",
