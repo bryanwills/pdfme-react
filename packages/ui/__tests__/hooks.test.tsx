@@ -1,8 +1,9 @@
 import React from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
-import type { Template } from '@pdfme/common';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { BLANK_PDF, type SchemaForUI, type Template } from '@pdfme/common';
 import * as converter from '@pdfme/converter';
-import { useUIPreProcessor } from '../src/hooks';
+import * as helper from '../src/helper';
+import { useInitEvents, useUIPreProcessor } from '../src/hooks';
 
 vi.mock('@pdfme/converter', () => ({
   pdf2size: vi.fn(),
@@ -68,4 +69,78 @@ test('useUIPreProcessor runs pdf sizing and imaging in parallel with isolated bu
   resolvePdf2size([{ width: 210, height: 297 }]);
 
   await waitFor(() => expect(result.current.pageSizes).toEqual([{ width: 210, height: 297 }]));
+});
+
+test('useInitEvents paste ignores missing DOM nodes instead of storing null active elements', () => {
+  vi.useFakeTimers();
+
+  const schema = {
+    id: 'field-1',
+    name: 'field1',
+    type: 'text',
+    content: 'value',
+    position: { x: 0, y: 0 },
+    width: 100,
+    height: 20,
+  } as SchemaForUI;
+  const activeElement = document.createElement('div');
+  activeElement.id = schema.id;
+  const template: Template = {
+    basePdf: BLANK_PDF,
+    schemas: [[schema]],
+  };
+  const pageSizes = [{ width: 210, height: 297 }];
+  const schemasList = [[schema]];
+  const changeSchemas = vi.fn();
+  const commitSchemas = vi.fn();
+  const removeSchemas = vi.fn();
+  const onSaveTemplate = vi.fn();
+  const setSchemasList = vi.fn();
+  const onEdit = vi.fn();
+  const onEditEnd = vi.fn();
+  const past = { current: [] as SchemaForUI[][] };
+  const future = { current: [] as SchemaForUI[][] };
+
+  let shortcuts:
+    | Parameters<typeof helper.initShortCuts>[0]
+    | undefined;
+
+  vi.spyOn(helper, 'initShortCuts').mockImplementation((arg) => {
+    shortcuts = arg;
+  });
+  vi.spyOn(helper, 'destroyShortCuts').mockImplementation(() => undefined);
+  vi.spyOn(helper, 'uuid').mockReturnValue('pasted-field');
+  vi.spyOn(document, 'getElementById').mockReturnValue(null);
+
+  renderHook(() =>
+    useInitEvents({
+      pageCursor: 0,
+      pageSizes,
+      activeElements: [activeElement],
+      template,
+      schemasList,
+      changeSchemas,
+      commitSchemas,
+      removeSchemas,
+      onSaveTemplate,
+      past,
+      future,
+      setSchemasList,
+      onEdit,
+      onEditEnd,
+    }),
+  );
+
+  expect(shortcuts).toBeDefined();
+
+  act(() => {
+    shortcuts!.copy();
+    shortcuts!.paste();
+    vi.runAllTimers();
+  });
+
+  expect(commitSchemas).toHaveBeenCalledTimes(1);
+  expect(onEdit).toHaveBeenCalledWith([]);
+
+  vi.useRealTimers();
 });

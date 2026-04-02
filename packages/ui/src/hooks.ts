@@ -224,7 +224,7 @@ interface UseInitEventsParams {
   past: React.MutableRefObject<SchemaForUI[][]>;
   future: React.MutableRefObject<SchemaForUI[][]>;
   setSchemasList: React.Dispatch<React.SetStateAction<SchemaForUI[][]>>;
-  onEdit: (targets: HTMLElement[]) => void;
+  onEdit: (targets: Array<HTMLElement | null | undefined>) => void;
   onEditEnd: () => void;
 }
 
@@ -247,6 +247,11 @@ export const useInitEvents = ({
   const copiedSchemas = useRef<SchemaForUI[] | null>(null);
 
   const initEvents = useCallback(() => {
+    const getElementsByIds = (ids: string[]) =>
+      ids
+        .map((id) => document.getElementById(id))
+        .filter((element): element is HTMLElement => element instanceof HTMLElement);
+
     const getActiveSchemas = () => {
       const ids = activeElements.map((ae) => ae.id);
 
@@ -295,7 +300,9 @@ export const useInitEvents = ({
           return Object.assign(cloneDeep(cs), { id, name, position });
         });
         commitSchemas(schemasList[pageCursor].concat(pasteSchemas));
-        onEdit(pasteSchemas.map((s) => document.getElementById(s.id)!));
+        setTimeout(() => {
+          onEdit(getElementsByIds(pasteSchemas.map((s) => s.id)));
+        });
         copiedSchemas.current = pasteSchemas;
       },
       redo: () => timeTravel('redo'),
@@ -304,7 +311,7 @@ export const useInitEvents = ({
         onSaveTemplate && onSaveTemplate(schemasList2template(schemasList, template.basePdf)),
       remove: () => removeSchemas(getActiveSchemas().map((s) => s.id)),
       esc: onEditEnd,
-      selectAll: () => onEdit(schemasList[pageCursor].map((s) => document.getElementById(s.id)!)),
+      selectAll: () => onEdit(getElementsByIds(schemasList[pageCursor].map((s) => s.id))),
     });
   }, [
     template,

@@ -82,8 +82,8 @@ const TemplateEditor = ({
     maxZoom,
   });
 
-  const onEdit = (targets: HTMLElement[]) => {
-    setActiveElements(targets);
+  const onEdit = (targets: Array<HTMLElement | null | undefined>) => {
+    setActiveElements(targets.filter((target): target is HTMLElement => target instanceof HTMLElement));
     setHoveringSchemaId(null);
   };
 
@@ -237,7 +237,7 @@ const TemplateEditor = ({
     }
 
     commitSchemas(schemasList[pageCursor].concat(s));
-    setTimeout(() => onEdit([document.getElementById(s.id)!]));
+    setTimeout(() => onEdit([document.getElementById(s.id)]));
   };
 
   const onSortEnd = (sortedSchemas: SchemaForUI[]) => {
