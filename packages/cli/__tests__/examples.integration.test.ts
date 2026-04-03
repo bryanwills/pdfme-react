@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { Dirent } from 'node:fs';
 import { PDFME_VERSION } from '@pdfme/common';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -194,9 +195,14 @@ describe('examples integration smoke', () => {
   it('keeps manifest and playground assets in sync', () => {
     const manifest = readJson<ExampleManifest>(MANIFEST_PATH);
     const versionedManifestPath = join(VERSIONED_MANIFEST_DIR, `${manifest.cliVersion}.json`);
+    const versionedManifestFiles = readdirSync(VERSIONED_MANIFEST_DIR, { withFileTypes: true })
+      .filter((entry: Dirent) => entry.isFile() && entry.name.endsWith('.json'))
+      .map((entry: Dirent) => entry.name)
+      .sort();
 
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.cliVersion).toBe(PDFME_VERSION);
+    expect(versionedManifestFiles).toEqual([`${manifest.cliVersion}.json`]);
     expect(existsSync(versionedManifestPath)).toBe(true);
     expect(readJson<ExampleManifest>(versionedManifestPath)).toEqual(manifest);
 

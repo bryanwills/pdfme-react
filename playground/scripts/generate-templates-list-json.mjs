@@ -59,6 +59,17 @@ function generateTemplatesListJson() {
     fs.mkdirSync(versionedManifestDir, { recursive: true });
   }
 
+  for (const entry of fs.readdirSync(versionedManifestDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) {
+      continue;
+    }
+
+    const manifestPath = path.join(versionedManifestDir, entry.name);
+    if (entry.name !== `${cliVersion}.json`) {
+      fs.rmSync(manifestPath);
+    }
+  }
+
   fs.writeFileSync(indexFilePath, JSON.stringify(result, null, 2));
   fs.writeFileSync(manifestFilePath, JSON.stringify(manifest, null, 2));
   fs.writeFileSync(path.join(versionedManifestDir, `${cliVersion}.json`), JSON.stringify(manifest, null, 2));
