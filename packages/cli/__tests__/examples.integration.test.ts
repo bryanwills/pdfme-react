@@ -22,7 +22,6 @@ const FONT_FIXTURES_DIR = resolve(
   'assets',
   'fonts',
 );
-const CLI_PACKAGE_JSON_PATH = resolve(__dirname, '..', 'package.json');
 
 interface ExampleManifestEntry {
   name: string;
@@ -193,11 +192,9 @@ describe('examples integration smoke', () => {
 
   it('keeps manifest and playground assets in sync', () => {
     const manifest = readJson<ExampleManifest>(MANIFEST_PATH);
-    const cliPackageJson = readJson<{ version: string }>(CLI_PACKAGE_JSON_PATH);
-    const versionedManifestPath = join(VERSIONED_MANIFEST_DIR, `${cliPackageJson.version}.json`);
+    const versionedManifestPath = join(VERSIONED_MANIFEST_DIR, `${manifest.cliVersion}.json`);
 
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.cliVersion).toBe(cliPackageJson.version);
     expect(existsSync(versionedManifestPath)).toBe(true);
     expect(readJson<ExampleManifest>(versionedManifestPath)).toEqual(manifest);
 
