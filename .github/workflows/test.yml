@@ -11,16 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js 20
+      - name: Use Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: |
             package-lock.json
             playground/package-lock.json
-      - name: Use npm 11.12.1
-        run: npm install -g npm@11.12.1
       - run: npm ci
       - run: npm run typecheck
       - run: ./node_modules/.bin/vp run --filter '@pdfme/*' lint
@@ -33,16 +31,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js 20
+      - name: Use Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: |
             package-lock.json
             playground/package-lock.json
-      - name: Use npm 11.12.1
-        run: npm install -g npm@11.12.1
       - name: Install workspace dependencies and build packages
         run: |
           npm ci
