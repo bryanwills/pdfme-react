@@ -1,6 +1,27 @@
 export const normalizeElementIdsForSnapshot = (container: HTMLElement) => {
+  const normalizeClassName = (className: string) =>
+    className
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter(
+        (token) =>
+          !token.startsWith('css-dev-only-do-not-override-')
+          && token !== 'css-var-root'
+          && token !== 'ant-divider-rail',
+      )
+      .join(' ');
+
   container.querySelectorAll<HTMLElement>('*').forEach((element) => {
     element.removeAttribute('data-pdfme-render-ready');
+    const className = element.getAttribute('class');
+    if (className) {
+      const normalizedClassName = normalizeClassName(className);
+      if (normalizedClassName) {
+        element.setAttribute('class', normalizedClassName);
+      } else {
+        element.removeAttribute('class');
+      }
+    }
     element.childNodes.forEach((childNode) => {
       if (childNode.nodeType === Node.TEXT_NODE && !childNode.textContent?.trim()) {
         childNode.remove();

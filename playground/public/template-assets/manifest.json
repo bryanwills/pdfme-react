@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "cliVersion": "6.0.2",
+  "cliVersion": "6.0.3",
   "templates": [
     {
       "name": "invoice",
