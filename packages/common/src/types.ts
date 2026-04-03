@@ -147,16 +147,15 @@ export interface PropPanel<T extends Schema> {
  * @property {string} [icon] Icon SVG for the plugin.
  * @property {boolean} [uninterruptedEditMode] When editing in the UI, should the field avoid re-rendering while in edit mode?
  */
-export type Plugin<T = Schema> = {
-  pdf: (arg: PDFRenderProps<T & Schema>) => Promise<void> | void;
-  ui: (arg: UIRenderProps<T & Schema>) => Promise<void> | void;
+export interface Plugin<T extends Schema = Schema> {
+  pdf(arg: PDFRenderProps<T & Schema>): Promise<void> | void;
+  ui(arg: UIRenderProps<T & Schema>): Promise<void> | void;
   propPanel: PropPanel<T & Schema>;
   icon?: string;
   uninterruptedEditMode?: boolean;
-};
+}
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Plugins = { [key: string]: Plugin<any> };
+export type Plugins = { [key: string]: Plugin };
 
 export interface PluginRegistry {
   plugins: { [key: string]: Plugin };
@@ -189,10 +188,10 @@ export type CustomPdf = z.infer<typeof CustomPdf>;
 export type Template = z.infer<typeof Template>;
 export type CommonOptions = z.infer<typeof CommonOptions>;
 export type GeneratorOptions = z.infer<typeof GeneratorOptions>;
-export type GenerateProps = z.infer<typeof GenerateProps> & { plugins?: Plugins };
+export type GenerateProps = Omit<z.infer<typeof GenerateProps>, 'plugins'> & { plugins?: Plugins };
 export type UIOptions = z.infer<typeof UIOptions> & { theme?: ThemeConfig };
-export type UIProps = z.infer<typeof UIProps> & { plugins?: Plugins };
-export type PreviewProps = z.infer<typeof PreviewProps> & { plugins?: Plugins };
-export type DesignerProps = z.infer<typeof DesignerProps> & { plugins?: Plugins };
+export type UIProps = Omit<z.infer<typeof UIProps>, 'plugins'> & { plugins?: Plugins };
+export type PreviewProps = Omit<z.infer<typeof PreviewProps>, 'plugins'> & { plugins?: Plugins };
+export type DesignerProps = Omit<z.infer<typeof DesignerProps>, 'plugins'> & { plugins?: Plugins };
 export type SchemaPageArray = z.infer<typeof SchemaPageArray>;
 export type LegacySchemaPageArray = z.infer<typeof LegacySchemaPageArray>;

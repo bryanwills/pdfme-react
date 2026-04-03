@@ -1,4 +1,4 @@
-import React, { useRef, useState, useContext, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useContext, useCallback, useEffect, useLayoutEffect } from 'react';
 import {
   cloneDeep,
   ZOOM,
@@ -72,6 +72,7 @@ const TemplateEditor = ({
   const [pageCursor, setPageCursor] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(options.zoomLevel ?? 1);
   const [sidebarOpen, setSidebarOpen] = useState(options.sidebarOpen ?? true);
+  const [canvasHeight, setCanvasHeight] = useState(0);
   const [prevTemplate, setPrevTemplate] = useState<Template | null>(null);
 
   const { backgrounds, pageSizes, scale, error, refresh } = useUIPreProcessor({
@@ -81,8 +82,8 @@ const TemplateEditor = ({
     maxZoom,
   });
 
-  const onEdit = (targets: HTMLElement[]) => {
-    setActiveElements(targets);
+  const onEdit = (targets: Array<HTMLElement | null | undefined>) => {
+    setActiveElements(targets.filter((target): target is HTMLElement => target instanceof HTMLElement));
     setHoveringSchemaId(null);
   };
 
@@ -91,17 +92,17 @@ const TemplateEditor = ({
     setHoveringSchemaId(null);
   };
 
-  // Update component state only when _options_ changes
-  // Ignore exhaustive useEffect dependency warnings here
   useEffect(() => {
-    if (typeof options.zoomLevel === 'number' && options.zoomLevel !== zoomLevel) {
+    if (typeof options.zoomLevel === 'number') {
       setZoomLevel(options.zoomLevel);
     }
-    if (typeof options.sidebarOpen === 'boolean' && options.sidebarOpen !== sidebarOpen) {
+  }, [options.zoomLevel]);
+
+  useEffect(() => {
+    if (typeof options.sidebarOpen === 'boolean') {
       setSidebarOpen(options.sidebarOpen);
     }
-    // eslint-disable-next-line
-  }, [options]);
+  }, [options.sidebarOpen]);
 
   useScrollPageCursor({
     ref: canvasRef,
@@ -114,6 +115,20 @@ const TemplateEditor = ({
       onEditEnd();
     },
   });
+
+  useLayoutEffect(() => {
+    const updateHeight = () => {
+      setCanvasHeight(canvasRef.current ? canvasRef.current.clientHeight : 0);
+    };
+    updateHeight();
+
+    if (typeof ResizeObserver === 'function' && canvasRef.current) {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(canvasRef.current);
+      return () => observer.disconnect();
+    }
+    return undefined;
+  }, [scale]);
 
   const commitSchemas = useCallback(
     (newSchemas: SchemaForUI[]) => {
@@ -222,7 +237,7 @@ const TemplateEditor = ({
     }
 
     commitSchemas(schemasList[pageCursor].concat(s));
-    setTimeout(() => onEdit([document.getElementById(s.id)!]));
+    setTimeout(() => onEdit([document.getElementById(s.id)]));
   };
 
   const onSortEnd = (sortedSchemas: SchemaForUI[]) => {
@@ -239,7 +254,7 @@ const TemplateEditor = ({
     onChangeTemplate(newTemplate);
     await updateTemplate(newTemplate);
     void refresh(newTemplate);
-    
+
     // Notify page change with updated total pages
     onPageCursorChange(newPageCursor, sl.length);
 
@@ -313,11 +328,7 @@ const TemplateEditor = ({
         }}
         onDragStart={onEditEnd}
       >
-        <LeftSidebar
-          height={canvasRef.current ? canvasRef.current.clientHeight : 0}
-          scale={scale}
-          basePdf={template.basePdf}
-        />
+        <LeftSidebar height={canvasHeight} scale={scale} basePdf={template.basePdf} />
 
         <div style={{ position: 'absolute', width: canvasWidth, marginLeft: LEFT_SIDEBAR_WIDTH }}>
           <CtlBar
@@ -340,7 +351,7 @@ const TemplateEditor = ({
           <RightSidebar
             hoveringSchemaId={hoveringSchemaId}
             onChangeHoveringSchemaId={onChangeHoveringSchemaId}
-            height={canvasRef.current ? canvasRef.current.clientHeight : 0}
+            height={canvasHeight}
             size={size}
             pageSize={pageSizes[pageCursor] ?? []}
             basePdf={template.basePdf}

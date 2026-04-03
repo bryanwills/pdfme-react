@@ -1,6 +1,10 @@
 import { substituteVariables, validateVariables } from '../src/multiVariableText/helper.js';
 import { MultiVariableTextSchema } from '../src/multiVariableText/types.js';
-
+import {
+  countUniqueVariableNames,
+  getVariableIndices,
+  getVariableNames,
+} from '../src/multiVariableText/variables.js';
 
 describe('substituteVariables', () => {
   it('should substitute variables in a string', () => {
@@ -56,6 +60,27 @@ describe('substituteVariables', () => {
     const text = 'Hello, {name}!';
     const variables = 'invalid json';
     expect(() => substituteVariables(text, variables)).toThrow(SyntaxError);
+  });
+});
+
+describe('multiVariableText variable scanning', () => {
+  it('should record variable start indices for well-formed placeholders', () => {
+    const indices = getVariableIndices('{first} {second}');
+
+    expect(indices.get(0)).toBe('first');
+    expect(indices.get(8)).toBe('second');
+  });
+
+  it('should restart from the latest opening brace in malformed input', () => {
+    expect(getVariableNames('Hello {{name}}')).toEqual(['name']);
+  });
+
+  it('should match the innermost completed placeholder when braces are nested', () => {
+    expect(getVariableNames('{a{b}')).toEqual(['b']);
+  });
+
+  it('should count only unique completed variable names', () => {
+    expect(countUniqueVariableNames('{name} {name} {city')).toBe(1);
   });
 });
 

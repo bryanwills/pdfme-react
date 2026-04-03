@@ -31,8 +31,8 @@
 
 ## Features
 
-| Fast PDF Generator | Easy PDF Template Design | Simple JSON Template |
-| --- | --- | --- |
+| Fast PDF Generator                                                                                    | Easy PDF Template Design                               | Simple JSON Template                                              |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- |
 | Works on Node and in the browser. Use templates to generate PDFs—complex operations are not required. | Anyone can easily create templates using the designer. | Templates are JSON data that is easy to understand and work with. |
 
 ## Custom Feature Requests
@@ -43,12 +43,22 @@ Please note that any additional functionality will always be released as open so
 
 For a detailed list of supported features, please refer to the [Supported Features](https://pdfme.com/docs/supported-features) page.
 
-
 ## Documentation
 
-For complete documentation on pdfme, please refer to the [Getting Started](https://pdfme.com/docs/getting-started) guide. 
+For complete documentation on pdfme, please refer to the [Getting Started](https://pdfme.com/docs/getting-started) guide.
+
+For the planned next major release changes, see the [migration guide draft](website/docs/migration-v6.md).
 
 Need interactive help? Use [DeepWiki](https://deepwiki.com/pdfme/pdfme) to ask questions about pdfme's documentation and source code directly.
+
+## CLI Workflow
+
+For agentic workflows, local verification, or JSON-first template iteration, use [`@pdfme/cli`](packages/cli/README.md).
+
+- `pdfme validate`: validate template or unified job JSON before generation
+- `pdfme doctor`: diagnose runtime, font, `basePdf`, and output-path issues before `generate`
+- `pdfme generate --image --grid`: generate PDFs and inspect layout via rendered page images
+- `pdfme examples --withInputs`: export official example assets as a unified job you can edit and regenerate
 
 ## Examples Using pdfme
 
@@ -67,15 +77,15 @@ pdfme Cloud provides all the features of the open-source library, plus:
 - Simple API integration
 - Automatic updates and maintenance
 
-*pdfme will always remain open source. The cloud service is an optional offering for those who prefer a managed solution.*
+_pdfme will always remain open source. The cloud service is an optional offering for those who prefer a managed solution._
 
 ## Sponsors
 
 Support this project by becoming a sponsor. Your logo will appear here with a link to your website.
 
 | [![ProgressLab](https://avatars.githubusercontent.com/u/103434180?s=120&v=4)](https://github.com/ProgressLabIT) | [<img src="https://github.com/user-attachments/assets/e5b1bbbe-bcc2-41bd-9d04-fcd886e62105" alt="photoquest_logo" width="150">](https://photoquest.wedding/) | [<img src="https://avatars.githubusercontent.com/u/6552685?s=200&v=4" alt="Famly" width="150">](https://famly.co) | [![New Sponsor](https://user-images.githubusercontent.com/10214025/90518111-e74bbb00-e198-11ea-8f88-c9e3c1aa4b5b.png)](https://github.com/sponsors/pdfme) |
-| :---: | :---: | :---: | :---: |
-| [ProgressLab](https://github.com/ProgressLabIT) | [PhotoQuest](https://photoquest.wedding/) | [Famly](https://famly.co) | [New Sponsor](https://github.com/sponsors/pdfme) |
+| :-------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------: |
+|                                 [ProgressLab](https://github.com/ProgressLabIT)                                 |                                                          [PhotoQuest](https://photoquest.wedding/)                                                           |                                             [Famly](https://famly.co)                                             |                                                     [New Sponsor](https://github.com/sponsors/pdfme)                                                      |
 
 ## Contributors
 

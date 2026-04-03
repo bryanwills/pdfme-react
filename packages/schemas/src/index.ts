@@ -1,6 +1,7 @@
 import multiVariableText from './multiVariableText/index.js';
 import text from './text/index.js';
 import image from './graphics/image.js';
+import signature from './graphics/signature.js';
 import svg from './graphics/svg.js';
 import barcodes from './barcodes/index.js';
 import line from './shapes/line.js';
@@ -12,15 +13,14 @@ import time from './date/time.js';
 import select from './select/index.js';
 import radioGroup from './radioGroup/index.js';
 import checkbox from './checkbox/index.js';
-
-const builtInPlugins = { Text: text };
+export { builtInPlugins } from './builtins.js';
 
 export {
-  builtInPlugins,
   // schemas
   text,
   multiVariableText,
   image,
+  signature,
   svg,
   table,
   barcodes,
@@ -36,4 +36,4 @@ export {
 };
 
 // Export utility functions
-export { getDynamicHeightsForTable } from './tables/dynamicTemplate.js';
+export { getDynamicHeightsForTable } from './tables.js';

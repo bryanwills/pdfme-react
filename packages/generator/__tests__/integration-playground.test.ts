@@ -1,9 +1,13 @@
 import generate from '../src/generate.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Template } from '@pdfme/common';
 import { getInputFromTemplate } from '@pdfme/common';
 import {
   text,
   image,
+  signature,
   svg,
   line,
   rectangle,
@@ -12,22 +16,9 @@ import {
   table,
   multiVariableText,
 } from '@pdfme/schemas';
-import { getFont, pdfToImages } from './utils.js';
-import * as fs from 'fs';
-import * as path from 'path';
-import 'jest-image-snapshot';
+import { getFont, getImageSnapshotOptions, pdfToImages } from './utils.js';
 
-const signature = {
-  pdf: image.pdf,
-  ui: () => {},
-  propPanel: {
-    ...image.propPanel,
-    defaultSchema: {
-      ...image.propPanel.defaultSchema,
-      type: 'signature',
-    },
-  },
-};
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PERFORMANCE_THRESHOLD = parseFloat(process.env.PERFORMANCE_THRESHOLD || '1.5');
 
@@ -125,11 +116,7 @@ describe('generate integration test(playground)', () => {
 
         const images = await pdfToImages(pdf);
         for (let i = 0; i < images.length; i++) {
-          expect(images[i]).toMatchImageSnapshot({
-            customSnapshotIdentifier: `${key}-${i + 1}`,
-            failureThreshold: 0.001, // Allow 0.1% pixel difference
-            failureThresholdType: 'percent' as const,
-          });
+          await expect(images[i]).toMatchImage(getImageSnapshotOptions(`${key}-${i + 1}`));
         }
       });
     }

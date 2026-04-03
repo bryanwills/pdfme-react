@@ -3,6 +3,7 @@ import {
   text,
   barcodes,
   image,
+  signature,
   svg,
   line,
   table,
@@ -15,7 +16,6 @@ import {
   checkbox,
   radioGroup,
 } from '@pdfme/schemas';
-import { signature } from './signature';
 
 export const getPlugins = () => {
   return {

@@ -1,21 +1,8 @@
 import generate from '../src/generate.js';
 import { other } from './assets/templates/index.js';
 import { getInputFromTemplate } from '@pdfme/common';
-import { text, image, svg, line, rectangle, ellipse, barcodes } from '@pdfme/schemas';
-import { getFont, pdfToImages } from './utils.js';
-import 'jest-image-snapshot';
-
-const signature = {
-  pdf: image.pdf,
-  ui: () => {},
-  propPanel: {
-    ...image.propPanel,
-    defaultSchema: {
-      ...image.propPanel.defaultSchema,
-      type: 'signature',
-    },
-  },
-};
+import { text, image, signature, svg, line, rectangle, ellipse, barcodes } from '@pdfme/schemas';
+import { getFont, getImageSnapshotOptions, pdfToImages } from './utils.js';
 
 const PERFORMANCE_THRESHOLD = parseFloat(process.env.PERFORMANCE_THRESHOLD || '1.5');
 
@@ -64,9 +51,7 @@ describe('generate integration test(other)', () => {
 
         const images = await pdfToImages(pdf);
         for (let i = 0; i < images.length; i++) {
-          expect(images[i]).toMatchImageSnapshot({
-            customSnapshotIdentifier: `${key}-${i + 1}`,
-          });
+          await expect(images[i]).toMatchImage(getImageSnapshotOptions(`${key}-${i + 1}`));
         }
       });
     }

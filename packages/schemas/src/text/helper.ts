@@ -110,6 +110,26 @@ const getFallbackFont = (font: Font) => {
 
 const getCacheKey = (fontName: string) => `getFontKitFont-${fontName}`;
 
+export const fetchRemoteFontData = async (url: string): Promise<ArrayBuffer> => {
+  if (!isUrlSafeToFetch(url)) {
+    throw Error(
+      '[@pdfme/schemas] Invalid or unsafe URL for font data. Only http: and https: URLs pointing to public hosts are allowed.',
+    );
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return await response.arrayBuffer();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw Error(`[@pdfme/schemas] Failed to fetch remote font data from ${url}. ${reason}`);
+  }
+};
+
 export const getFontKitFont = async (
   fontName: string | undefined,
   font: Font,
@@ -125,10 +145,7 @@ export const getFontKitFont = async (
   let fontData = currentFont.data;
   if (typeof fontData === 'string') {
     if (fontData.startsWith('http')) {
-      if (!isUrlSafeToFetch(fontData)) {
-        throw Error('[@pdfme/schemas] Invalid or unsafe URL for font data. Only http: and https: URLs pointing to public hosts are allowed.');
-      }
-      fontData = await fetch(fontData).then((res) => res.arrayBuffer());
+      fontData = await fetchRemoteFontData(fontData);
     } else {
       fontData = b64toUint8Array(fontData);
     }
@@ -373,7 +390,7 @@ export const splitTextToSize = (arg: {
     boxWidthInPt,
   };
   let lines: string[] = [];
-  value.split(/\r\n|\r|\n|\f|\u000B/g).forEach((line: string) => {
+  value.split(/\r\n|\r|\n|\f|\v/g).forEach((line: string) => {
     lines = lines.concat(getSplittedLinesBySegmenter(line, fontWidthCalcValues));
   });
   return lines;

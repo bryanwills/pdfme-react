@@ -42,81 +42,108 @@ export const useUIPreProcessor = ({ template, size, zoomLevel, maxZoom }: UIPreP
   const [pageSizes, setPageSizes] = useState<Size[]>([]);
   const [scale, setScale] = useState(0);
   const [error, setError] = useState<Error | null>(null);
+  const isMountedRef = useRef(true);
+  const requestIdRef = useRef(0);
 
-  const init = async (prop: { template: Template; size: Size }) => {
-    const {
-      template: { basePdf, schemas },
-      size,
-    } = prop;
+  const init = useCallback(
+    async (prop: { template: Template; size: Size }) => {
+      const {
+        template: { basePdf, schemas },
+        size,
+      } = prop;
 
-    let paperWidth: number;
-    let paperHeight: number;
-    let _backgrounds: string[];
-    let _pageSizes: { width: number; height: number }[];
+      let paperWidth: number;
+      let paperHeight: number;
+      let _backgrounds: string[];
+      let _pageSizes: { width: number; height: number }[];
 
-    if (isBlankPdf(basePdf)) {
-      const { width, height } = basePdf;
-      paperWidth = width * ZOOM;
-      paperHeight = height * ZOOM;
-      _backgrounds = schemas.map(
-        () =>
-          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdj+P///38ACfsD/QVDRcoAAAAASUVORK5CYII=',
+      if (isBlankPdf(basePdf)) {
+        const { width, height } = basePdf;
+        paperWidth = width * ZOOM;
+        paperHeight = height * ZOOM;
+        _backgrounds = schemas.map(
+          () =>
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdj+P///38ACfsD/QVDRcoAAAAASUVORK5CYII=',
+        );
+        _pageSizes = schemas.map(() => ({ width, height }));
+      } else {
+        const _basePdf = await getB64BasePdf(basePdf);
+        const uint8Array = b64toUint8Array(_basePdf);
+        const createPdfArrayBuffer = () => {
+          const buffer = new ArrayBuffer(uint8Array.byteLength);
+          new Uint8Array(buffer).set(uint8Array);
+          return buffer;
+        };
+
+        const [pageSizeBuffer, imageBuffer] = [createPdfArrayBuffer(), createPdfArrayBuffer()];
+        const [_pages, imgBuffers] = await Promise.all([
+          pdf2size(pageSizeBuffer),
+          pdf2img(imageBuffer, { scale: maxZoom }),
+        ]);
+        _pageSizes = _pages;
+        paperWidth = _pageSizes[0].width * ZOOM;
+        paperHeight = _pageSizes[0].height * ZOOM;
+        _backgrounds = imgBuffers.map(arrayBufferToBase64);
+      }
+
+      const _scale = Math.min(
+        getScale(size.width, paperWidth),
+        getScale(size.height - RULER_HEIGHT, paperHeight),
       );
-      _pageSizes = schemas.map(() => ({ width, height }));
-    } else {
-      const _basePdf = await getB64BasePdf(basePdf);
 
-      const uint8Array = b64toUint8Array(_basePdf);
-      // Create a new ArrayBuffer copy to avoid detachment issues
-      const pdfArrayBuffer = new ArrayBuffer(uint8Array.byteLength);
-      new Uint8Array(pdfArrayBuffer).set(uint8Array);
+      return {
+        backgrounds: _backgrounds,
+        pageSizes: _pageSizes,
+        scale: _scale,
+      };
+    },
+    [maxZoom],
+  );
 
-      const [_pages, imgBuffers] = await Promise.all([
-        pdf2size(pdfArrayBuffer),
-        pdf2img(pdfArrayBuffer.slice(), { scale: maxZoom }),
-      ]);
-      _pageSizes = _pages;
-      paperWidth = _pageSizes[0].width * ZOOM;
-      paperHeight = _pageSizes[0].height * ZOOM;
-      _backgrounds = imgBuffers.map(arrayBufferToBase64);
-    }
+  useEffect(
+    () => () => {
+      isMountedRef.current = false;
+    },
+    [],
+  );
 
-    const _scale = Math.min(
-      getScale(size.width, paperWidth),
-      getScale(size.height - RULER_HEIGHT, paperHeight),
-    );
+  const runInit = useCallback(
+    async (prop: { template: Template; size: Size }) => {
+      const requestId = ++requestIdRef.current;
 
-    return {
-      backgrounds: _backgrounds,
-      pageSizes: _pageSizes,
-      scale: _scale,
-    };
-  };
+      try {
+        const { pageSizes, scale, backgrounds } = await init(prop);
+        if (!isMountedRef.current || requestId !== requestIdRef.current) {
+          return;
+        }
 
-  useEffect(() => {
-    init({ template, size })
-      .then(({ pageSizes, scale, backgrounds }) => {
         setPageSizes(pageSizes);
         setScale(scale);
         setBackgrounds(backgrounds);
-      })
-      .catch((err: Error) => {
-        setError(err);
-        console.error('[@pdfme/ui]', err);
-      });
-  }, [template, size]);
+        setError(null);
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        if (isMountedRef.current && requestId === requestIdRef.current) {
+          setError(error);
+          console.error('[@pdfme/ui]', error);
+        }
+      }
+    },
+    [init],
+  );
+
+  useEffect(() => {
+    void runInit({ template, size });
+  }, [runInit, template, size]);
+
+  const refresh = useCallback((template: Template) => runInit({ template, size }), [runInit, size]);
 
   return {
     backgrounds,
     pageSizes,
     scale: scale * zoomLevel,
     error,
-    refresh: (template: Template) =>
-      init({ template, size }).then(({ pageSizes, scale, backgrounds }) => {
-        setPageSizes(pageSizes);
-        setScale(scale);
-        setBackgrounds(backgrounds);
-      }),
+    refresh,
   };
 };
 
@@ -164,10 +191,11 @@ export const useScrollPageCursor = ({
   }, [onChangePageCursor, pageCursor, pageSizes, ref, scale]);
 
   useEffect(() => {
-    ref.current?.addEventListener('scroll', onScroll);
+    const node = ref.current;
+    node?.addEventListener('scroll', onScroll);
 
     return () => {
-      ref.current?.removeEventListener('scroll', onScroll);
+      node?.removeEventListener('scroll', onScroll);
     };
   }, [ref, onScroll]);
 };
@@ -196,7 +224,7 @@ interface UseInitEventsParams {
   past: React.MutableRefObject<SchemaForUI[][]>;
   future: React.MutableRefObject<SchemaForUI[][]>;
   setSchemasList: React.Dispatch<React.SetStateAction<SchemaForUI[][]>>;
-  onEdit: (targets: HTMLElement[]) => void;
+  onEdit: (targets: Array<HTMLElement | null | undefined>) => void;
   onEditEnd: () => void;
 }
 
@@ -219,6 +247,11 @@ export const useInitEvents = ({
   const copiedSchemas = useRef<SchemaForUI[] | null>(null);
 
   const initEvents = useCallback(() => {
+    const getElementsByIds = (ids: string[]) =>
+      ids
+        .map((id) => document.getElementById(id))
+        .filter((element): element is HTMLElement => element instanceof HTMLElement);
+
     const getActiveSchemas = () => {
       const ids = activeElements.map((ae) => ae.id);
 
@@ -267,7 +300,9 @@ export const useInitEvents = ({
           return Object.assign(cloneDeep(cs), { id, name, position });
         });
         commitSchemas(schemasList[pageCursor].concat(pasteSchemas));
-        onEdit(pasteSchemas.map((s) => document.getElementById(s.id)!));
+        setTimeout(() => {
+          onEdit(getElementsByIds(pasteSchemas.map((s) => s.id)));
+        });
         copiedSchemas.current = pasteSchemas;
       },
       redo: () => timeTravel('redo'),
@@ -276,7 +311,7 @@ export const useInitEvents = ({
         onSaveTemplate && onSaveTemplate(schemasList2template(schemasList, template.basePdf)),
       remove: () => removeSchemas(getActiveSchemas().map((s) => s.id)),
       esc: onEditEnd,
-      selectAll: () => onEdit(schemasList[pageCursor].map((s) => document.getElementById(s.id)!)),
+      selectAll: () => onEdit(getElementsByIds(schemasList[pageCursor].map((s) => s.id))),
     });
   }, [
     template,

@@ -1,13 +1,22 @@
 import { propPanel as parentPropPanel } from '../text/propPanel.js';
 import { PropPanel, PropPanelWidgetProps } from '@pdfme/common';
 import { MultiVariableTextSchema } from './types.js';
+import { getVariableNames } from './variables.js';
 
 const mapDynamicVariables = (props: PropPanelWidgetProps) => {
   const { rootElement, changeSchemas, activeSchema, i18n, options } = props;
 
   const mvtSchema = activeSchema as unknown as MultiVariableTextSchema;
   const text = mvtSchema.text || '';
-  const variables = JSON.parse(mvtSchema.content || '{}') as Record<string, string>;
+  let variables: Record<string, string> = {};
+  try {
+    const parsed = JSON.parse(mvtSchema.content || '{}');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      variables = parsed as Record<string, string>;
+    }
+  } catch {
+    // content is not valid JSON (e.g. a plain string value) — start fresh
+  }
   const variablesChanged = updateVariablesFromText(text, variables);
   const varNames = Object.keys(variables);
 
@@ -113,7 +122,7 @@ export const propPanel: PropPanel<MultiVariableTextSchema> = {
       },
     };
   },
-  widgets: { ...(parentPropPanel.widgets || {}), mapDynamicVariables },
+  widgets: { ...parentPropPanel.widgets, mapDynamicVariables },
   defaultSchema: {
     ...parentPropPanel.defaultSchema,
     readOnly: false,
@@ -127,14 +136,14 @@ export const propPanel: PropPanel<MultiVariableTextSchema> = {
 };
 
 const updateVariablesFromText = (text: string, variables: Record<string, string>): boolean => {
-  const regex = /\{([^{}]+)}/g;
-  const matches = text.match(regex);
+  const matches = getVariableNames(text);
   let changed = false;
 
-  if (matches) {
+  if (matches.length > 0) {
+    const uniqueMatches = new Set(matches);
+
     // Add any new variables
-    for (const match of matches) {
-      const variableName = match.replace('{', '').replace('}', '');
+    for (const variableName of uniqueMatches) {
       if (!(variableName in variables)) {
         // NOTE: We upper case the variable name as the default value
         variables[variableName] = variableName.toUpperCase();
@@ -143,7 +152,7 @@ const updateVariablesFromText = (text: string, variables: Record<string, string>
     }
     // Remove any that no longer exist
     Object.keys(variables).forEach((variableName) => {
-      if (!matches.includes('{' + variableName + '}')) {
+      if (!uniqueMatches.has(variableName)) {
         delete variables[variableName];
         changed = true;
       }
