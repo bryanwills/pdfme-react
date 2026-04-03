@@ -10,7 +10,7 @@
 `@pdfme/generator` と `@pdfme/ui` が使うデフォルトのプラグインレジストリには、意図的に `text` スキーマだけが含まれています。テンプレートでそれ以外の built-in schema type を使う場合は、`@pdfme/schemas` から対象プラグインを import して `plugins` に渡してください。
 :::
 
-## @pdfme/schemasからのスキーマの使用
+## @pdfme/schemasからのスキーマの使用 {#using-schemas-from-pdfmeschemas}
 
 ここでは、`@pdfme/schemas`から画像、署名、QRコードのスキーマをインポートする方法を説明します。
 
@@ -92,7 +92,7 @@ Designerからプラグインを使用することで、デフォルトのスキ
 ![](/img/custom-schemas-tips.png)
 :::
 
-## 独自のスキーマの作成
+## 独自のスキーマの作成 {#creating-your-own-schemas}
 
 次に、独自のスキーマを作成したい人のための方法を紹介します。  
 スキーマを作成した場合や、アイデアがある場合は、[GitHub Discussions](https://github.com/pdfme/pdfme/discussions/288)で共有してください。  

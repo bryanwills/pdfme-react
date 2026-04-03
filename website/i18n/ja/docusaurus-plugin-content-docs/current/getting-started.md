@@ -63,7 +63,7 @@ import { Designer, Form, Viewer } from '@pdfme/ui';
 
 **すべてのオブジェクトは`Template`を使用しており、これについては次のセクションで簡単に説明します。**
 
-## テンプレート
+## テンプレート {#template}
 
 pdfmeライブラリの中核はテンプレートです。  
 テンプレート型は`@pdfme/generator`または`@pdfme/ui`の両方からインポートできます。テンプレートはあらゆる場所で使用されます。
@@ -86,12 +86,12 @@ basePdf: { "width": 210, "height": 297, "padding": [10, 10, 10, 10] }
 
 **schemas**はデフォルトではテキストのみ使用できます。`generate`、`Designer`、`Form`、`Viewer` が使うデフォルトのプラグインレジストリには、意図的に `text` スキーマだけが含まれています。  
 画像、署名、テーブル、QRコードなどのバーコード、その他のスキーマタイプを使う場合は、`@pdfme/schemas` から対象プラグインを明示的に import し、`plugins` オプションで渡してください。  
-さらに、独自のスキーマを作成することで、上記以外の種類をレンダリングすることも可能です。詳細は[カスタムスキーマ](/docs/custom-schemas)と、既存コードを更新する場合の [v6 migration guide](/docs/migration-v6#text-only-default-plugin-registry) をご覧ください。
+さらに、独自のスキーマを作成することで、上記以外の種類をレンダリングすることも可能です。詳細は[カスタムスキーマ](/docs/custom-schemas)と、既存コードを更新する場合の [v6 migration guide](/docs/migration-v6) をご覧ください。
 
 具体的なデータを見てみましょう。  
 （TypeScriptを使用している場合は、Template型をインポートできます。）
 
-### 最小限のテンプレート
+### 最小限のテンプレート {#minimal-template}
 
 ```ts
 import { Template, BLANK_PDF } from '@pdfme/common';
@@ -202,11 +202,11 @@ generate({ template, inputs, plugins }).then((pdf) => {
 
 サポートされているすべての組み込みスキーマタイプを表示するには、[サポートされている機能のドキュメント](/docs/supported-features)を参照してください。
 
-#### カスタムスキーマタイプの作成
+#### カスタムスキーマタイプの作成 {#creating-your-own-schemas}
 
 組み込みではないスキーマタイプが必要な場合は、独自のものを定義できます。詳細な手順については、[カスタムスキーマガイド](/docs/custom-schemas#creating-your-own-schemas)をご覧ください。
 
-## ジェネレーター
+## ジェネレーター {#generator}
 
 PDF生成関数`generate`は、PDFを生成するために`template`と`inputs`の2つの引数を取ります。これはNode.jsとブラウザの両方で動作します。
 
@@ -243,7 +243,7 @@ generate({ template, inputs }).then((pdf) => {
 
 UIは[デザイナー](/docs/getting-started#designer)、[フォーム](/docs/getting-started#form)、[ビューワー](/docs/getting-started#viewer)クラスで構成されています。
 
-### デザイナー
+### デザイナー {#designer}
 
 デザイナーを使用すると、テンプレートスキーマを編集でき、誰でも簡単にテンプレートJSONオブジェクトを作成できます。
 
@@ -289,7 +289,7 @@ const options = {
 const designer = new Designer({ domContainer, template, options });
 ```
 
-### フォーム
+### フォーム {#form}
 
 テンプレートを使用してフォームとPDFビューワーを作成できます。
 
@@ -324,7 +324,7 @@ generate({ template, inputs: form.getInputs() }).then((pdf) => {
 });
 ```
 
-### ビューワー
+### ビューワー {#viewer}
 
 モバイルブラウザでPDFファイルを表示するのは、iframeでうまく表示されないため面倒です。
 

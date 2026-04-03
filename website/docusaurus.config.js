@@ -7,12 +7,16 @@ const config = {
   url: 'https://pdfme.com',
   baseUrl: '/',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
   favicon: 'favicon.ico',
   organizationName: 'pdfme',
   projectName: 'pdfme',
   deploymentBranch: 'website',
   trailingSlash: false,
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
   i18n: {
     defaultLocale: 'en',
     locales: ['en', 'ja'],
