@@ -1,13 +1,14 @@
 # CLI
 
-`@pdfme/cli` は、JSON-first な pdfme workflow のためのコマンドライン surface です。
+`@pdfme/cli` は、JSON-first な pdfme workflow のためのコマンドラインインターフェースです。
 
 主な用途:
 
-- custom Node script を書かずにローカルで template を反復調整する
-- `generate` 実行前に CI で前提条件を確認する
-- machine-readable な出力を必要とする agent workflow を回す
-- 既存 PDF の上に field を重ねる `basePdf` overlay workflow を使う
+- custom Node script を書かずに template と inputs から PDF を生成する
+- `generate` の前に template や unified job を検証する
+- CI や agent 実行前に runtime、font、`basePdf`、出力先の問題を診断する
+- 既存 PDF を画像やページサイズ情報に変換する
+- official example を template または unified job として取り出す
 
 ## インストール
 
@@ -23,33 +24,330 @@ npm install -D @pdfme/cli
 npx @pdfme/cli generate --help
 ```
 
-## 主なコマンド
+## コマンド一覧
 
 - `pdfme generate`
-  - template + inputs または unified job から PDF を生成する
-  - `--image` でページ画像も出力できる
-  - `--grid` でグリッドと schema 境界を画像に重ねられる
-  - `--verbose` で input/output/render 条件を stderr に出せる。`--json` の stdout は汚さない
+  - unified job または `--template` + `--inputs` から PDF を生成する
+  - 必要に応じてページ画像も出力する
+  - 画像にグリッド線と schema 境界を重ねられる
 - `pdfme validate`
-  - generate 前に template または unified job を検証する
-  - machine-readable な inspection には `--json` を使う
-  - `--verbose` で source / mode / 件数サマリを stderr に出せる
+  - 生成前に template または unified job を検証する
+  - `--json` で machine-readable な inspection を返す
 - `pdfme doctor`
-  - generate 前に runtime, font, `basePdf`, cache, output path の問題を診断する
-  - `--verbose` で target / input / runtime のサマリを stderr に出せる
+  - 環境、input、font、`basePdf`、cache、output path を診断する
 - `pdfme pdf2img`
-  - 既存 PDF をページ画像に変換する
-  - `--verbose` で source/output/render 条件を stderr に出せる。`--json` の stdout は汚さない
+  - 既存 PDF をページ画像へ変換する
 - `pdfme pdf2size`
-  - ページサイズをミリメートル単位で確認する
-  - `--verbose` で source と総ページ数を stderr に出せる
+  - PDF のページサイズをミリメートル単位で確認する
 - `pdfme examples`
-  - official examples を参照し、必要なら sample input 付き unified job として出力する
-  - `--verbose` で manifest / template source と output 先を stderr に出せる
+  - official example を一覧表示または出力する
 
-## 典型的な workflow
+## `pdfme generate`
 
-official example から始め、runtime 前提を診断し、画像を出して目視確認する流れです。
+`generate` は次の 2 形式を受け付けます。
+
+- unified job file
+- template file + separate inputs file
+
+使用例:
+
+```bash
+# Unified job file: { template, inputs, options? }
+pdfme generate job.json -o out.pdf
+
+# Template + inputs を別ファイルで指定
+pdfme generate -t template.json -i inputs.json -o out.pdf
+
+# ページ画像も出力
+pdfme generate job.json -o out.pdf --image
+
+# 画像にグリッド線と schema 境界を重ねる
+pdfme generate job.json -o out.pdf --grid
+
+# CLI から basePdf を上書き
+pdfme generate -t template.json -i inputs.json --basePdf invoice.pdf -o out.pdf
+
+# CI / agent 向けの構造化出力
+pdfme generate job.json -o out.pdf --image --json
+```
+
+主なオプション:
+
+| オプション | デフォルト | 説明 |
+| --- | --- | --- |
+| `[file]` | - | `{ template, inputs, options? }` を含む unified job file |
+| `-t, --template` | - | Template JSON file |
+| `-i, --inputs` | - | Input JSON file |
+| `-o, --output` | `output.pdf` | 出力 PDF パス |
+| `--force` | `false` | 暗黙の `output.pdf` 上書きを許可する |
+| `--image` | `false` | 生成した各ページの画像も書き出す |
+| `--imageFormat` | `png` | `png` または `jpeg` |
+| `--scale` | `1` | 画像レンダリングの scale |
+| `--grid` | `false` | 生成画像にグリッド線と schema 境界を描画する |
+| `--gridSize` | `10` | グリッド間隔(mm) |
+| `--font` | - | `Name=path.ttf` 形式のローカル custom font。複数指定時はカンマ区切り |
+| `--basePdf` | - | `template.basePdf` を PDF file path で上書きする |
+| `--noAutoFont` | `false` | CJK 文字向けの `NotoSansJP` 自動解決を無効化する |
+| `-v, --verbose` | `false` | 入出力や描画条件を stderr に出す |
+| `--json` | `false` | stdout に JSON のみを出す |
+
+注意点:
+
+- `output.pdf` が既に存在し、かつ `-o` や `--force` を明示していない場合、`generate` は上書きを拒否します。
+- `--grid` は `--image` を付けていなくても画像出力を有効にします。
+- 生成画像は出力 PDF と同じディレクトリに `<output-base>-1.png`, `<output-base>-2.png` の形式で保存されます。`--imageFormat jpeg` の場合は `.jpg` になります。
+- `--font` のローカルパスは CLI 実行時の current working directory 基準で解決されます。
+- unified job の `options.font.<name>.data` にあるローカルパスは、job file または template file のあるディレクトリ基準で解決されます。
+- CJK が含まれ、かつ明示的な font source がない場合、CLI は `--noAutoFont` が付いていない限り `NotoSansJP` を自動解決して cache します。
+
+Unified job の例:
+
+```json
+{
+  "template": {
+    "basePdf": {
+      "width": 210,
+      "height": 297,
+      "padding": [20, 20, 20, 20]
+    },
+    "schemas": [
+      [
+        {
+          "name": "customerName",
+          "type": "text",
+          "position": { "x": 20, "y": 50 },
+          "width": 80,
+          "height": 10
+        }
+      ]
+    ]
+  },
+  "inputs": [
+    { "customerName": "John Doe" }
+  ],
+  "options": {
+    "font": {
+      "NotoSansJP": {
+        "data": "https://fonts.gstatic.com/...",
+        "fallback": false,
+        "subset": true
+      }
+    }
+  }
+}
+```
+
+`template.basePdf` には `"./invoice.pdf"` のような相対 PDF path も指定できます。必要なら `--basePdf` で実行時に上書きできます。
+
+`--json` 指定時の stdout は JSON のみになります。
+
+```json
+{
+  "ok": true,
+  "command": "generate",
+  "mode": "job",
+  "templatePageCount": 1,
+  "inputCount": 1,
+  "pageCount": 1,
+  "outputPath": "out.pdf",
+  "outputBytes": 12345,
+  "imagePaths": ["out-1.png"]
+}
+```
+
+## `pdfme validate`
+
+`validate` は template file または unified job file を、生成前に検証します。
+
+使用例:
+
+```bash
+pdfme validate template.json
+pdfme validate job.json --json
+cat job.json | pdfme validate - --json
+pdfme validate template.json --strict
+pdfme validate template.json -v --json
+```
+
+主な検証内容:
+
+- pdfme の template validation による構造チェック
+- 未知の schema type
+- 同一ページ内の重複 field name
+- ページをまたいだ同名 field の warning
+- ページ境界外にはみ出す field position の warning
+- template top-level の未知フィールドに対する warning
+- unified job が `generate` に渡せる形かどうか
+- unified job に対する field-level input contract check
+
+便利なフラグ:
+
+- `--strict`
+  - warning も failure 扱いにする
+- `--json`
+  - `valid`, `errors`, `warnings`, `inspection`, `inputHints` を返す
+- `-v, --verbose`
+  - 入力 source、mode、件数、サマリを stderr に出す
+
+`inputHints` により、`generate` 実行前に writable field が何を期待しているかを判定できます。現行 CLI は次の入力種別を区別します。
+
+- plain string
+- `contentKind` 付きの asset-like string
+- human-readable な `rule` を持つ barcode string
+- `string[][]` の table payload
+- `format` metadata を持つ canonical date/time string
+- `select` / `checkbox` / `radioGroup` の constrained enum string
+- `multiVariableText` 向けの JSON string object
+
+## `pdfme doctor`
+
+`doctor` は実行環境や特定の template/job を、生成前に診断します。
+
+使用例:
+
+```bash
+# 環境診断
+pdfme doctor
+
+# Template または job の診断
+pdfme doctor job.json --json
+
+# stdin から診断
+cat job.json | pdfme doctor - --json
+
+# Font に絞った診断
+pdfme doctor fonts job.json --json
+
+# 自動 CJK font 解決を無効化した条件で診断
+pdfme doctor job.json --noAutoFont --json
+
+# generate と同じ output path / image output 条件で事前診断
+pdfme doctor job.json -o artifacts/out.pdf --image --imageFormat jpeg --json
+```
+
+## `pdfme pdf2img`
+
+既存 PDF をページ画像に変換します。
+
+使用例:
+
+```bash
+pdfme pdf2img invoice.pdf
+pdfme pdf2img invoice.pdf --grid --gridSize 10
+pdfme pdf2img invoice.pdf --pages 1-3
+pdfme pdf2img invoice.pdf -o ./images --imageFormat jpeg
+pdfme pdf2img invoice.pdf -o ./images --json
+```
+
+挙動:
+
+- `-o, --output` はファイル名ではなくディレクトリを受け取ります
+- 出力ファイル名は `<input-base>-<page>.png` または `.jpg` です
+- `--pages` は `1-3` や `1,3,5` のような形式を受け取ります
+- `--grid` はレンダリングされたページ画像にミリメートルグリッドを描画します
+- `--json` では `pageCount`, `selectedPageCount`, `outputPaths`, 各ページの width/height を返します
+
+## `pdfme pdf2size`
+
+PDF のページサイズをミリメートル単位で確認します。
+
+使用例:
+
+```bash
+pdfme pdf2size invoice.pdf
+pdfme pdf2size invoice.pdf --json
+```
+
+標準サイズを検出できる場合、人間向け出力には `A4 portrait` のようなラベルも付きます。JSON 出力の例:
+
+```json
+{
+  "ok": true,
+  "command": "pdf2size",
+  "pageCount": 1,
+  "pages": [
+    { "pageNumber": 1, "width": 210, "height": 297 }
+  ]
+}
+```
+
+## `pdfme examples`
+
+playground の asset manifest から official example を一覧表示または出力します。
+
+使用例:
+
+```bash
+# 一覧表示
+pdfme examples --list
+
+# name 未指定でも一覧表示
+pdfme examples
+
+# Template を stdout に出力
+pdfme examples invoice
+
+# Template をファイルに保存
+pdfme examples invoice -o template.json
+
+# サンプル入力付き unified job を出力
+pdfme examples invoice --withInputs -o job.json
+
+# Manifest metadata を JSON で取得
+pdfme examples --list --json
+```
+
+挙動:
+
+- manifest と template asset は `https://playground.pdfme.com/template-assets` から取得されます
+- `PDFME_EXAMPLES_BASE_URL` 環境変数で base URL を上書きできます
+- `--withInputs` では sample inputs に加えて、official hosted font が必要な例では `options.font` も同梱されます
+- `--json` の list mode では template name、schema type、font name、page count などの metadata を返します
+
+## Font Contract
+
+CLI は font を「明示的な source contract」として扱います。
+
+サポートされる explicit font source:
+
+- `--font Name=./path.ttf` による local `.ttf` file
+- unified job `options.font.<name>.data` にある local `.ttf` file
+- public な direct `http(s)` font asset URL
+- `.ttf` data URI
+- programmatic use における inline bytes
+
+現行ルール:
+
+- 明示的にサポートする custom font format は `.ttf` のみ
+- `.otf` と `.ttc` は reject される
+- `fonts.googleapis.com/css*` の stylesheet URL は reject される
+- unsafe/private/loopback な `http(s)` URL は reject される
+- explicit remote font fetch は 15 秒 timeout、32 MiB size limit で解決される
+- remote font failure は `EFONT` で返る
+
+CJK 向けの自動 `NotoSansJP` 解決は、明示的な font source がないときだけ使われます。CJK を含み、font が cache されておらず、さらに自動解決が無効または不可能な場合は `generate` は `EFONT` で失敗します。
+
+## Structured Output と Exit Code
+
+`--json` を付けると:
+
+- stdout は JSON のみになる
+- 成功 payload は `ok: true`
+- failure payload は `ok: false` と `error.code`, `error.message`, 場合によっては `error.details` を含む
+- `-v, --verbose` の人間向け情報は引き続き stderr に出る
+
+現行の exit code 区分:
+
+| コード | 意味 |
+| --- | --- |
+| `0` | 成功 |
+| `1` | argument / validation / unsupported input failure |
+| `2` | runtime / font-resolution failure |
+| `3` | file I/O failure |
+
+## 典型的な使い方
+
+official example から job を作成して、まず診断し、画像で確認してから PDF を作成します。
 
 ```bash
 pdfme examples invoice --withInputs -o job.json
@@ -57,11 +355,7 @@ pdfme doctor job.json --json
 pdfme generate job.json -o out.pdf --image --grid
 ```
 
-CLI は human-readable な出力だけでなく structured JSON も返せるため、agent や CI に向いています。
-
-## 既存 PDF への overlay workflow
-
-既存 PDF の上に text, date, signature などの field を重ねたい場合:
+既存 PDF を basePdf として使う overlay workflow:
 
 ```bash
 pdfme pdf2img invoice.pdf --grid --gridSize 10
@@ -69,56 +363,3 @@ pdfme pdf2size invoice.pdf --json
 pdfme doctor template.json -o out.pdf --image --json
 pdfme generate -t template.json -i inputs.json -o out.pdf --image --grid
 ```
-
-この flow では template の `basePdf` に既存 PDF を指定し、pdfme は overlay field だけを描画します。
-
-## Machine-Readable Contract
-
-`--json` を付けると:
-
-- stdout は JSON のみになる
-- `--verbose` の補足情報は stderr に出る
-- failure は `ok: false` の structured error を返す
-- `doctor` は command 自体が動けば `ok: true` を返し、blocking issue の有無は `healthy` で表す
-- `validate --json` / `doctor --json` は field-level の `inputHints` も返すため、plain string、`contentKind` 付きの asset-like string、human-readable `rule` を持つ barcode string、`string[][]` の table payload、`format` metadata を持つ date/time string、制約付き string enum、group-aware enum、JSON string object のどれを期待する field かを事前判定できる
-
-そのため、CLI は automation、agent、CI gate に向いています。
-
-たとえば image / signature / svg では `contentKind` が、barcode 系では `contentKind` と human-readable な `rule` が、table では `columnCount` / `columnHeaders` / `acceptsJsonString` が、date 系では `format` と `canonicalFormat` が返り、actual input も canonical stored content 基準で validate されます。`select` / `checkbox` では enum 形式の `allowedValues` が、`radioGroup` ではそれに加えて `groupName` / `groupMemberNames` が、`multiVariableText` では expected variable names と sample JSON string payload が返ります。
-
-## Font Contract
-
-CLI はフォントを「拡張子の慣習」ではなく source contract として扱います。
-
-対応する入力:
-
-- `--font` 経由の local `.ttf` path
-- unified job `options.font` 内の local `.ttf` path
-- public な direct `http(s)` font asset URL
-- `.ttf` data URI
-- programmatic use での inline bytes
-
-現行 policy:
-
-- `fonts.gstatic.com/...ttf` の direct URL は supported remote source
-- `fonts.googleapis.com/css*` の stylesheet URL は unsupported
-- unsafe/private/loopback な font URL は reject
-- `.otf` と `.ttc` は current contract の外
-
-CJK を含む場合、`--noAutoFont` を付けない限り、CLI は `NotoSansJP` を自動解決して cache できます。
-
-## Remote Font Runtime Safety
-
-explicit remote font は generator に渡す前に CLI 側で解決されます。
-
-- timeout: 15 秒
-- size limit: 32 MiB
-- network/HTTP/timeout/size-limit failure は `EFONT` で返す
-
-`pdfme doctor fonts ... --json` の font diagnosis には各 source の `needsNetwork` が含まれるため、その job が network 前提かを事前に判定できます。
-
-## 詳細
-
-完全な command reference、examples、現行実装の補足は package README を参照してください。
-
-- [`packages/cli/README.md`](https://github.com/pdfme/pdfme/blob/main/packages/cli/README.md)
