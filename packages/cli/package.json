@@ -1,6 +1,6 @@
 {
   "name": "@pdfme/cli",
-  "version": "0.1.0-alpha.0",
+  "version": "5.5.10-dev.125",
   "description": "CLI tool for pdfme - generate PDFs, convert images, validate templates",
   "keywords": [
     "pdf",
