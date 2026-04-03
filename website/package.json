@@ -17,9 +17,9 @@
   },
   "dependencies": {
     "@docusaurus/core": "^3.9.2",
-    "@docusaurus/module-type-aliases": "^3.9.1",
+    "@docusaurus/module-type-aliases": "^3.9.2",
     "@docusaurus/plugin-client-redirects": "^3.9.2",
-    "@docusaurus/plugin-google-gtag": "^3.9.1",
+    "@docusaurus/plugin-google-gtag": "^3.9.2",
     "@docusaurus/preset-classic": "^3.9.2",
     "react": "^19.1.1",
     "react-dom": "^19.2.4",
@@ -28,6 +28,11 @@
   "devDependencies": {
     "@tsconfig/docusaurus": "^2.0.9",
     "typescript": "^6.0.2"
+  },
+  "overrides": {
+    "copy-webpack-plugin": "^14.0.0",
+    "css-minimizer-webpack-plugin": "^8.0.0",
+    "serialize-javascript": "^7.0.5"
   },
   "browserslist": {
     "production": [
