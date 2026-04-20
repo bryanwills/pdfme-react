@@ -26,6 +26,14 @@ export const getFontsData = (): Font => ({
   },
 });
 
+const getFormFontsData = (): Font =>
+  Object.fromEntries(
+    Object.entries(getFontsData()).map(([fontName, font]) => [
+      fontName,
+      { ...font, fallback: fontName === 'NotoSansJP', subset: false },
+    ]),
+  );
+
 export const readFile = (file: File | null, type: 'text' | 'dataURL' | 'arrayBuffer') => {
   return new Promise<string | ArrayBuffer>((r) => {
     const fileReader = new FileReader();
@@ -111,7 +119,7 @@ export const generatePDF = async (
     typeof (currentRef as Viewer | Form).getInputs === 'function'
       ? (currentRef as Viewer | Form).getInputs()
       : getInputFromTemplate(template);
-  const font = getFontsData();
+  const font = output === 'form' ? getFormFontsData() : getFontsData();
 
   try {
     const pdf = await (output === 'form' ? generateForm : generate)({

@@ -1,5 +1,5 @@
 import { BLANK_PDF, Template } from '@pdfme/common';
-import { PDFDocument } from '@pdfme/pdf-lib';
+import { PDFDict, PDFDocument, PDFName } from '@pdfme/pdf-lib';
 import { select } from '@pdfme/schemas';
 import generateForm from '../src/generateForm.js';
 import { getFont } from './utils.js';
@@ -71,6 +71,42 @@ describe('generateForm', () => {
 
     expect(form.getFields().map((field) => field.getName())).toEqual(['patientName']);
     expect(form.getTextField('patientName').getText()).toBe('山田 太郎');
+  });
+
+  test('registers AcroForm text fonts in default resources for PDF viewer input', async () => {
+    const template: Template = {
+      basePdf: BLANK_PDF,
+      schemas: [
+        [
+          {
+            name: 'patientName',
+            type: 'text',
+            content: '',
+            position: { x: 20, y: 25 },
+            width: 80,
+            height: 10,
+            fontName: 'NotoSansJP',
+            fontSize: 12,
+          },
+        ],
+      ],
+    };
+    const font = getFont();
+
+    const pdf = await generateForm({
+      template,
+      options: { font: { ...font, NotoSansJP: { ...font.NotoSansJP, subset: false } } },
+    });
+    const form = (await PDFDocument.load(pdf)).getForm();
+    const defaultAppearance = form.getTextField('patientName').acroField.getDefaultAppearance();
+    const fontName = defaultAppearance?.match(/\/(\S+)\s+[\d.]+\s+Tf/)?.[1];
+
+    expect(fontName).toBeTruthy();
+
+    const defaultResources = form.acroForm.dict.lookup(PDFName.of('DR'), PDFDict);
+    const fontResources = defaultResources.lookup(PDFName.of('Font'), PDFDict);
+
+    expect(fontResources.has(PDFName.of(fontName!))).toBe(true);
   });
 
   test('renames duplicate fields during multi-input generation', async () => {

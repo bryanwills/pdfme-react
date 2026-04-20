@@ -6,7 +6,14 @@ import {
   type Plugin,
   type Schema,
 } from '@pdfme/common';
-import { PDFDocument, PDFFont, TextAlignment, type PDFRadioGroup } from '@pdfme/pdf-lib';
+import {
+  PDFDict,
+  PDFDocument,
+  PDFFont,
+  PDFName,
+  TextAlignment,
+  type PDFRadioGroup,
+} from '@pdfme/pdf-lib';
 import { convertForPdfLayoutProps, hex2PrintingColor } from '@pdfme/schemas/utils';
 
 type AcroFormSchema = Schema & {
@@ -126,6 +133,27 @@ const getPdfFont = async (arg: {
   return pdfFont;
 };
 
+const registerAcroFormFontResource = (pdfDoc: PDFDocument, pdfFont: PDFFont) => {
+  const formDict = pdfDoc.getForm().acroForm.dict;
+  const context = formDict.context;
+
+  const defaultResourcesKey = PDFName.of('DR');
+  const fontResourcesKey = PDFName.of('Font');
+  let defaultResources = formDict.lookupMaybe(defaultResourcesKey, PDFDict);
+  if (!defaultResources) {
+    defaultResources = context.obj({});
+    formDict.set(defaultResourcesKey, defaultResources);
+  }
+
+  let fontResources = defaultResources.lookupMaybe(fontResourcesKey, PDFDict);
+  if (!fontResources) {
+    fontResources = context.obj({});
+    defaultResources.set(fontResourcesKey, fontResources);
+  }
+
+  fontResources.set(PDFName.of(pdfFont.name), pdfFont.ref);
+};
+
 const getTextAlignment = (alignment: AcroTextSchema['alignment']) => {
   switch (alignment) {
     case 'center':
@@ -146,6 +174,7 @@ const renderAcroText = async (arg: PDFRenderProps<Schema>) => {
       ? textSchema.fontName
       : getFallbackFontName(font);
   const pdfFont = await getPdfFont({ pdfDoc, font, fontName, _cache });
+  registerAcroFormFontResource(pdfDoc, pdfFont);
   const { position, width, height, rotate } = convertForPdfLayoutProps({
     schema,
     pageHeight: page.getHeight(),
