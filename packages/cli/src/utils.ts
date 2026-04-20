@@ -56,11 +56,7 @@ export function readJsonFile(filePath: string): unknown {
   }
 }
 
-export function loadInput(args: {
-  _: string[];
-  template?: string;
-  inputs?: string;
-}): LoadedInput {
+export function loadInput(args: { _: string[]; template?: string; inputs?: string }): LoadedInput {
   const positionalFile = args._[0];
 
   if (positionalFile && !args.template && !args.inputs) {
@@ -93,10 +89,10 @@ export function loadInput(args: {
     return { template, inputs, templateDir: dirname(templatePath) };
   }
 
-  fail(
-    'No input provided. Use a unified job file or pass --template/-t with --inputs/-i.',
-    { code: 'EARG', exitCode: 1 },
-  );
+  fail('No input provided. Use a unified job file or pass --template/-t with --inputs/-i.', {
+    code: 'EARG',
+    exitCode: 1,
+  });
 }
 
 export function resolveBasePdf(
@@ -151,11 +147,14 @@ export function writeOutput(filePath: string, data: Uint8Array | ArrayBuffer): v
     }
     writeFileSync(filePath, data instanceof ArrayBuffer ? new Uint8Array(data) : data);
   } catch (error) {
-    fail(`Failed to write file: ${filePath}. ${error instanceof Error ? error.message : String(error)}`, {
-      code: 'EIO',
-      exitCode: 3,
-      cause: error,
-    });
+    fail(
+      `Failed to write file: ${filePath}. ${error instanceof Error ? error.message : String(error)}`,
+      {
+        code: 'EIO',
+        exitCode: 3,
+        cause: error,
+      },
+    );
   }
 }
 
@@ -168,11 +167,14 @@ export function readPdfFile(filePath: string): Uint8Array {
   try {
     return new Uint8Array(readFileSync(resolvedPath));
   } catch (error) {
-    fail(`Failed to read PDF file: ${resolvedPath}. ${error instanceof Error ? error.message : String(error)}`, {
-      code: 'EIO',
-      exitCode: 3,
-      cause: error,
-    });
+    fail(
+      `Failed to read PDF file: ${resolvedPath}. ${error instanceof Error ? error.message : String(error)}`,
+      {
+        code: 'EIO',
+        exitCode: 3,
+        cause: error,
+      },
+    );
   }
 }
 
@@ -215,16 +217,14 @@ export function parsePageRange(rangeStr: string, totalPages: number): number[] {
     }
     if (trimmed.includes('-')) {
       const [startStr, endStr] = trimmed.split('-');
-      if (
-        !startStr ||
-        !endStr ||
-        !/^\d+$/.test(startStr) ||
-        !/^\d+$/.test(endStr)
-      ) {
-        fail(`Invalid page range segment: ${JSON.stringify(trimmed)}. Use formats like "1-3" or "2".`, {
-          code: 'EARG',
-          exitCode: 1,
-        });
+      if (!startStr || !endStr || !/^\d+$/.test(startStr) || !/^\d+$/.test(endStr)) {
+        fail(
+          `Invalid page range segment: ${JSON.stringify(trimmed)}. Use formats like "1-3" or "2".`,
+          {
+            code: 'EARG',
+            exitCode: 1,
+          },
+        );
       }
 
       const start = Number.parseInt(startStr, 10);
@@ -242,10 +242,13 @@ export function parsePageRange(rangeStr: string, totalPages: number): number[] {
       for (let i = start; i <= end; i++) pages.add(i);
     } else {
       if (!/^\d+$/.test(trimmed)) {
-        fail(`Invalid page range segment: ${JSON.stringify(trimmed)}. Use formats like "1-3" or "2".`, {
-          code: 'EARG',
-          exitCode: 1,
-        });
+        fail(
+          `Invalid page range segment: ${JSON.stringify(trimmed)}. Use formats like "1-3" or "2".`,
+          {
+            code: 'EARG',
+            exitCode: 1,
+          },
+        );
       }
       const p = Number.parseInt(trimmed, 10);
       if (p < 1 || p > totalPages) {
@@ -274,11 +277,14 @@ export async function readJsonFromStdin(): Promise<unknown> {
   try {
     return JSON.parse(content);
   } catch (error) {
-    fail(`Failed to parse JSON from stdin. ${error instanceof Error ? error.message : String(error)}`, {
-      code: 'EIO',
-      exitCode: 3,
-      cause: error,
-    });
+    fail(
+      `Failed to parse JSON from stdin. ${error instanceof Error ? error.message : String(error)}`,
+      {
+        code: 'EIO',
+        exitCode: 3,
+        cause: error,
+      },
+    );
   }
 }
 
@@ -334,7 +340,8 @@ export function inspectWriteTarget(filePath: string): WriteTargetInspection {
     }
   }
 
-  const checkedPath = exists && existingType === 'file' ? resolvedPath : findExistingParent(parentDir);
+  const checkedPath =
+    exists && existingType === 'file' ? resolvedPath : findExistingParent(parentDir);
   const checkedType = getFsEntryType(checkedPath);
 
   try {

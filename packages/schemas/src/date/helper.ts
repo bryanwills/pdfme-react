@@ -97,7 +97,11 @@ const LOCALE_MAP: Record<string, Locale> = {
   it: { label: 'Italian', adLocale: normalizeAdLocale(localeIt), formatLocale: dateFns.it },
   ja: { label: 'Japanese', adLocale: normalizeAdLocale(localeJa), formatLocale: dateFns.ja },
   ko: { label: 'Korean', adLocale: normalizeAdLocale(localeKo), formatLocale: dateFns.ko },
-  nb: { label: 'Norwegian Bokmål', adLocale: normalizeAdLocale(localeNb), formatLocale: dateFns.nb },
+  nb: {
+    label: 'Norwegian Bokmål',
+    adLocale: normalizeAdLocale(localeNb),
+    formatLocale: dateFns.nb,
+  },
   nl: { label: 'Dutch', adLocale: normalizeAdLocale(localeNl), formatLocale: dateFns.nl },
   pl: { label: 'Polish', adLocale: normalizeAdLocale(localePl), formatLocale: dateFns.pl },
   'pt-Br': {
@@ -205,9 +209,7 @@ export const getSafeFormat = (
   schema: Pick<DateSchema, 'format'>,
   locale: Locale,
 ): string => {
-  return isValidDateFormat(schema.format, locale)
-    ? schema.format.trim()
-    : getFormat(type, locale);
+  return isValidDateFormat(schema.format, locale) ? schema.format.trim() : getFormat(type, locale);
 };
 
 export const getFmtValue = (

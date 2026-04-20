@@ -13,7 +13,10 @@ const REMOTE_FONT_TIMEOUT_MS = 15000;
 const MAX_REMOTE_FONT_BYTES = 32 * 1024 * 1024; // 32 MiB
 
 export type ExplicitFontSourceKind = 'localPath' | 'url' | 'dataUri' | 'inlineBytes' | 'invalid';
-export type ExplicitFontRemoteProvider = 'genericPublic' | 'googleFontsAsset' | 'googleFontsStylesheet';
+export type ExplicitFontRemoteProvider =
+  | 'genericPublic'
+  | 'googleFontsAsset'
+  | 'googleFontsStylesheet';
 
 export interface ExplicitFontSourceDiagnosis {
   fontName: string;
@@ -147,7 +150,11 @@ export async function normalizeExplicitFontOption(
   const fontRecord = jobFont as Record<string, unknown>;
 
   for (const fontName of Object.keys(fontRecord).sort()) {
-    normalized[fontName] = await normalizeExplicitFontSource(fontName, fontRecord[fontName], templateDir);
+    normalized[fontName] = await normalizeExplicitFontSource(
+      fontName,
+      fontRecord[fontName],
+      templateDir,
+    );
   }
 
   return normalized;
@@ -386,9 +393,7 @@ async function normalizeExplicitFontSource(
   for (const issue of analysis.issues) {
     const code = issue.includes('not found')
       ? 'EIO'
-      : issue.includes('unsupported')
-        || issue.includes('unsafe')
-        || issue.includes('uses .')
+      : issue.includes('unsupported') || issue.includes('unsafe') || issue.includes('uses .')
         ? 'EUNSUPPORTED'
         : 'EARG';
     fail(issue, { code, exitCode: code === 'EIO' ? 3 : 1 });
@@ -411,10 +416,7 @@ async function normalizeExplicitFontSource(
     };
   }
 
-  if (
-    analysis.source.kind === 'dataUri'
-    || analysis.source.kind === 'inlineBytes'
-  ) {
+  if (analysis.source.kind === 'dataUri' || analysis.source.kind === 'inlineBytes') {
     const normalizedData =
       typeof data === 'string'
         ? data
@@ -442,7 +444,10 @@ async function fetchRemoteFontSource(
       signal: AbortSignal.timeout(REMOTE_FONT_TIMEOUT_MS),
     });
     if (!response.ok) {
-      failRemoteFontFetch(source, `Failed to fetch remote font data from ${url}. HTTP ${response.status}`);
+      failRemoteFontFetch(
+        source,
+        `Failed to fetch remote font data from ${url}. HTTP ${response.status}`,
+      );
     }
 
     const contentLengthHeader = response.headers.get('content-length');
@@ -612,16 +617,8 @@ function getValueType(value: unknown): string {
   return typeof value;
 }
 
-export async function resolveFont(
-  options: ResolveFontOptions,
-): Promise<Font> {
-  const {
-    fontArgs,
-    hasCJK,
-    noAutoFont,
-    verbose,
-    hasExplicitFontConfig = false,
-  } = options;
+export async function resolveFont(options: ResolveFontOptions): Promise<Font> {
+  const { fontArgs, hasCJK, noAutoFont, verbose, hasExplicitFontConfig = false } = options;
 
   if (fontArgs && fontArgs.length > 0) {
     return parseCustomFonts(fontArgs);

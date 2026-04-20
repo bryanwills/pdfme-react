@@ -21,11 +21,7 @@ function isPlugin(value: unknown): value is Plugin {
   );
 }
 
-function collectPluginsByType(
-  value: unknown,
-  plugins: Plugins,
-  seen: WeakSet<object>,
-): void {
+function collectPluginsByType(value: unknown, plugins: Plugins, seen: WeakSet<object>): void {
   if (!value || typeof value !== 'object') {
     return;
   }

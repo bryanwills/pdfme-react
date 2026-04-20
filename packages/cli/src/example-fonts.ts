@@ -39,9 +39,7 @@ export function collectTemplateFontNames(template: Record<string, unknown>): str
 export function getOfficialExampleFonts(template: Record<string, unknown>): Font | undefined {
   const entries = collectTemplateFontNames(template).flatMap((fontName) => {
     const url = OFFICIAL_EXAMPLE_FONT_URLS[fontName as keyof typeof OFFICIAL_EXAMPLE_FONT_URLS];
-    return url
-      ? [[fontName, { data: url, fallback: false, subset: true }] as const]
-      : [];
+    return url ? [[fontName, { data: url, fallback: false, subset: true }] as const] : [];
   });
 
   if (entries.length === 0) {

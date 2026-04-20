@@ -33,13 +33,22 @@ const generateArgs = {
   },
   template: { type: 'string' as const, alias: 't', description: 'Template JSON file' },
   inputs: { type: 'string' as const, alias: 'i', description: 'Input data JSON file' },
-  output: { type: 'string' as const, alias: 'o', description: 'Output PDF path', default: 'output.pdf' },
+  output: {
+    type: 'string' as const,
+    alias: 'o',
+    description: 'Output PDF path',
+    default: 'output.pdf',
+  },
   force: {
     type: 'boolean' as const,
     description: 'Allow overwriting the implicit default output path',
     default: false,
   },
-  image: { type: 'boolean' as const, description: 'Also output PNG images per page', default: false },
+  image: {
+    type: 'boolean' as const,
+    description: 'Also output PNG images per page',
+    default: false,
+  },
   imageFormat: { type: 'string' as const, description: 'Image format: png | jpeg', default: 'png' },
   scale: { type: 'string' as const, description: 'Image render scale', default: '1' },
   grid: {
@@ -85,13 +94,22 @@ export default defineCommand({
         force: Boolean(args.force),
       });
 
-      const { template: rawTemplate, inputs, options: rawJobOptions, templateDir } = loadInput({
+      const {
+        template: rawTemplate,
+        inputs,
+        options: rawJobOptions,
+        templateDir,
+      } = loadInput({
         _: args.file ? [args.file] : [],
         template: args.template,
         inputs: args.inputs,
       });
 
-      const template = resolveBasePdf(rawTemplate, args.basePdf, templateDir) as unknown as Template;
+      const template = resolveBasePdf(
+        rawTemplate,
+        args.basePdf,
+        templateDir,
+      ) as unknown as Template;
       const mode = args.file ? 'job' : 'template+inputs';
       const templatePageCount = normalizeSchemaPages(template.schemas).length;
       const jobOptions = normalizeJobOptions(rawJobOptions);
@@ -113,17 +131,21 @@ export default defineCommand({
         hasExplicitFontConfig: hasExplicitFontEntries(jobOptions.font),
       });
       const mergedFontConfig = mergeFontConfig(jobOptions.font, resolvedFont);
-      const font = (await normalizeExplicitFontOption(mergedFontConfig, templateDir)) ?? resolvedFont;
+      const font =
+        (await normalizeExplicitFontOption(mergedFontConfig, templateDir)) ?? resolvedFont;
       const generateOptions = { ...jobOptions, font };
 
       try {
         checkGenerateProps({ template, inputs, options: generateOptions });
       } catch (error) {
-        fail(`Invalid generation input. ${error instanceof Error ? error.message : String(error)}`, {
-          code: 'EVALIDATE',
-          exitCode: 1,
-          cause: error,
-        });
+        fail(
+          `Invalid generation input. ${error instanceof Error ? error.message : String(error)}`,
+          {
+            code: 'EVALIDATE',
+            exitCode: 1,
+            cause: error,
+          },
+        );
       }
 
       validateInputContracts(template as unknown as Record<string, unknown>, inputs);
@@ -187,7 +209,8 @@ export default defineCommand({
               height: number;
             }>;
 
-            const size = renderedPageSizes[i] ?? renderedPageSizes[0] ?? { width: 210, height: 297 };
+            const size = renderedPageSizes[i] ??
+              renderedPageSizes[0] ?? { width: 210, height: 297 };
 
             const gridImage = await drawGridOnImage(
               images[i],
@@ -316,13 +339,15 @@ function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<string, u
   return rawSchemas.map((page) => {
     if (Array.isArray(page)) {
       return page.filter(
-        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+        (schema): schema is Record<string, unknown> =>
+          typeof schema === 'object' && schema !== null,
       );
     }
 
     if (typeof page === 'object' && page !== null) {
       return Object.values(page).filter(
-        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+        (schema): schema is Record<string, unknown> =>
+          typeof schema === 'object' && schema !== null,
       );
     }
 

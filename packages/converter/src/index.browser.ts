@@ -9,10 +9,7 @@ const clonePdfData = (pdf: ArrayBuffer | Uint8Array) =>
 const loadingTaskMap = new WeakMap<object, { destroy: () => Promise<void> }>();
 
 const getDocument = async (pdf: ArrayBuffer | Uint8Array) => {
-  if (
-    typeof Worker !== 'undefined' &&
-    pdfjsLib.GlobalWorkerOptions.workerSrc !== workerSrc
-  ) {
+  if (typeof Worker !== 'undefined' && pdfjsLib.GlobalWorkerOptions.workerSrc !== workerSrc) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
   }
 

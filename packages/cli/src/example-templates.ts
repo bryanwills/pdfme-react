@@ -89,7 +89,11 @@ export async function fetchExampleTemplateWithSource(
 
   const relativePath = entry.path;
   const templateUrl = `${getExamplesBaseUrl().replace(/\/$/, '')}/${relativePath}`;
-  return { template: await fetchJson<Record<string, unknown>>(templateUrl), source: 'remote', url: templateUrl };
+  return {
+    template: await fetchJson<Record<string, unknown>>(templateUrl),
+    source: 'remote',
+    url: templateUrl,
+  };
 }
 
 function getManifestUrls(): string[] {
@@ -133,24 +137,39 @@ function normalizeManifest(raw: unknown): ExampleManifest {
 
 function normalizeEntries(rawTemplates: unknown[]): ExampleManifestEntry[] {
   return rawTemplates
-    .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+    .filter(
+      (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
+    )
     .map((entry) => {
       const name = typeof entry.name === 'string' ? entry.name : '';
 
       return {
         name,
-        author: typeof entry.author === 'string' && entry.author.length > 0 ? entry.author : 'pdfme',
-        path: typeof entry.path === 'string' && entry.path.length > 0 ? entry.path : `${name}/template.json`,
+        author:
+          typeof entry.author === 'string' && entry.author.length > 0 ? entry.author : 'pdfme',
+        path:
+          typeof entry.path === 'string' && entry.path.length > 0
+            ? entry.path
+            : `${name}/template.json`,
         thumbnailPath:
           typeof entry.thumbnailPath === 'string' && entry.thumbnailPath.length > 0
             ? entry.thumbnailPath
             : `${name}/thumbnail.png`,
-        pageCount: typeof entry.pageCount === 'number' && Number.isFinite(entry.pageCount) ? entry.pageCount : 0,
-        fieldCount: typeof entry.fieldCount === 'number' && Number.isFinite(entry.fieldCount) ? entry.fieldCount : 0,
+        pageCount:
+          typeof entry.pageCount === 'number' && Number.isFinite(entry.pageCount)
+            ? entry.pageCount
+            : 0,
+        fieldCount:
+          typeof entry.fieldCount === 'number' && Number.isFinite(entry.fieldCount)
+            ? entry.fieldCount
+            : 0,
         schemaTypes: normalizeStringArray(entry.schemaTypes),
         fontNames: normalizeStringArray(entry.fontNames),
         hasCJK: typeof entry.hasCJK === 'boolean' ? entry.hasCJK : false,
-        basePdfKind: typeof entry.basePdfKind === 'string' && entry.basePdfKind.length > 0 ? entry.basePdfKind : 'unknown',
+        basePdfKind:
+          typeof entry.basePdfKind === 'string' && entry.basePdfKind.length > 0
+            ? entry.basePdfKind
+            : 'unknown',
       };
     })
     .filter((entry) => entry.name.length > 0);

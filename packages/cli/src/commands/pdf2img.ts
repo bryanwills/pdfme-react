@@ -86,7 +86,12 @@ export default defineCommand({
         console.error(`Grid: ${args.grid ? `enabled (${gridSize}mm)` : 'disabled'}`);
       }
 
-      const results: Array<{ outputPath: string; pageNumber: number; width: number; height: number }> = [];
+      const results: Array<{
+        outputPath: string;
+        pageNumber: number;
+        width: number;
+        height: number;
+      }> = [];
 
       for (const pageIdx of pageIndices) {
         let imageData = allImages[pageIdx];

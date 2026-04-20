@@ -334,7 +334,11 @@ export default defineCommand({
   },
 });
 
-function resolveDoctorInvocation(args: { _: string[]; target?: string; file?: string }): DoctorInvocation {
+function resolveDoctorInvocation(args: {
+  _: string[];
+  target?: string;
+  file?: string;
+}): DoctorInvocation {
   const positionals = Array.isArray(args._) ? args._ : [];
 
   if (args.target === 'fonts') {
@@ -385,12 +389,7 @@ function buildInputDiagnosis(
     );
   }
 
-  const fontDiagnosis = diagnoseFonts(
-    source,
-    environment,
-    noAutoFont,
-    inspection.requiredFonts,
-  );
+  const fontDiagnosis = diagnoseFonts(source, environment, noAutoFont, inspection.requiredFonts);
   const basePdfDiagnosis = diagnoseBasePdf(source.template.basePdf, source.templateDir);
   const runtimeDiagnosis = diagnoseRuntime(source, options.runtime);
   const issues = [...validation.errors];
@@ -437,7 +436,9 @@ function buildInputDiagnosis(
   };
 }
 
-function createValidationPayload(validation: InputDiagnosis['validation']): Record<string, unknown> {
+function createValidationPayload(
+  validation: InputDiagnosis['validation'],
+): Record<string, unknown> {
   return {
     valid: validation.valid,
     errors: validation.errors,
@@ -578,7 +579,9 @@ function diagnoseRuntime(
     imageOutputs: {
       enabled: options.image,
       format: options.imageFormat,
-      paths: options.image ? getImageOutputPaths(options.output, estimatedPages, options.imageFormat) : [],
+      paths: options.image
+        ? getImageOutputPaths(options.output, estimatedPages, options.imageFormat)
+        : [],
       directory: dirname(output.resolvedPath),
     },
   };
@@ -601,7 +604,12 @@ function diagnoseOutputPath(options: RuntimeOptions): OutputPathDiagnosis {
     issue = `Output path points to a directory: ${inspection.resolvedPath}. Choose a file path like out.pdf.`;
   } else if (!issue && inspection.exists && inspection.existingType === 'other') {
     issue = `Output path is not a regular file: ${inspection.resolvedPath}.`;
-  } else if (!issue && inspection.checkedType && inspection.checkedType !== 'directory' && inspection.existingType !== 'file') {
+  } else if (
+    !issue &&
+    inspection.checkedType &&
+    inspection.checkedType !== 'directory' &&
+    inspection.existingType !== 'file'
+  ) {
     issue = `Output directory cannot be created because an existing path segment is not a directory: ${inspection.checkedPath ?? inspection.parentDir}.`;
   } else if (!issue && !inspection.writable) {
     issue =
@@ -660,7 +668,9 @@ function diagnoseFonts(
         [DEFAULT_FONT_NAME]: { data: new Uint8Array(), fallback: true, subset: true },
       };
 
-  const effectiveFont = explicit.fontRecord ? { ...explicit.fontRecord, ...resolvedFont } : resolvedFont;
+  const effectiveFont = explicit.fontRecord
+    ? { ...explicit.fontRecord, ...resolvedFont }
+    : resolvedFont;
   const effectiveFonts = Object.keys(effectiveFont).sort();
   const missingFonts = requiredFonts.filter((fontName) => !effectiveFonts.includes(fontName));
 
@@ -791,12 +801,17 @@ function printEnvironmentReport(
   issues: string[],
   warnings: string[],
 ): void {
-  const header = issues.length === 0 ? '\u2713 Environment looks ready' : '\u2717 Environment has blocking issues';
+  const header =
+    issues.length === 0
+      ? '\u2713 Environment looks ready'
+      : '\u2717 Environment has blocking issues';
   console.log(header);
   console.log(`Node: ${environment.nodeVersion}`);
   console.log(`CLI: ${environment.cliVersion}`);
   console.log(`Platform: ${environment.platform} ${environment.arch}`);
-  console.log(`cwd: ${environment.cwd.path} (${environment.cwd.writable ? 'writable' : 'not writable'})`);
+  console.log(
+    `cwd: ${environment.cwd.path} (${environment.cwd.writable ? 'writable' : 'not writable'})`,
+  );
   console.log(
     `temp: ${environment.tempDir.path} (${environment.tempDir.writable ? 'writable' : 'not writable'})`,
   );

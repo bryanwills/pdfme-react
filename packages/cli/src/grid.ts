@@ -137,11 +137,7 @@ function drawGridLines(
   }
 }
 
-function drawSchemaOverlays(
-  ctx: CanvasContext,
-  schemas: Schema[],
-  pxPerMm: number,
-): void {
+function drawSchemaOverlays(ctx: CanvasContext, schemas: Schema[], pxPerMm: number): void {
   for (const schema of schemas) {
     const color = getSchemaColor(schema.type);
     const x = schema.position.x * pxPerMm;
@@ -175,9 +171,7 @@ function drawSchemaOverlays(
   }
 }
 
-async function loadAndPrepareCanvas(
-  imageBuffer: ArrayBuffer,
-): Promise<{
+async function loadAndPrepareCanvas(imageBuffer: ArrayBuffer): Promise<{
   canvas: { toBuffer(mime: string): Buffer };
   ctx: CanvasContext;
   img: { width: number; height: number };

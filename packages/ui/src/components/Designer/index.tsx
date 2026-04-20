@@ -1,4 +1,11 @@
-import React, { useRef, useState, useContext, useCallback, useEffect, useLayoutEffect } from 'react';
+import React, {
+  useRef,
+  useState,
+  useContext,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+} from 'react';
 import {
   cloneDeep,
   ZOOM,
@@ -83,7 +90,9 @@ const TemplateEditor = ({
   });
 
   const onEdit = (targets: Array<HTMLElement | null | undefined>) => {
-    setActiveElements(targets.filter((target): target is HTMLElement => target instanceof HTMLElement));
+    setActiveElements(
+      targets.filter((target): target is HTMLElement => target instanceof HTMLElement),
+    );
     setHoveringSchemaId(null);
   };
 

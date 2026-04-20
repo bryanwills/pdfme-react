@@ -4,7 +4,13 @@ import { fail } from './contract.js';
 import { schemaTypes } from './schema-plugins.js';
 import { detectPaperSize, readJsonFile, readJsonFromStdin } from './utils.js';
 
-export const KNOWN_TEMPLATE_KEYS = new Set(['author', 'basePdf', 'columns', 'pdfmeVersion', 'schemas']);
+export const KNOWN_TEMPLATE_KEYS = new Set([
+  'author',
+  'basePdf',
+  'columns',
+  'pdfmeVersion',
+  'schemas',
+]);
 export const KNOWN_JOB_KEYS = new Set(['template', 'inputs', 'options']);
 
 export interface ValidationResult {
@@ -355,13 +361,15 @@ export function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<st
   return rawSchemas.map((page) => {
     if (Array.isArray(page)) {
       return page.filter(
-        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+        (schema): schema is Record<string, unknown> =>
+          typeof schema === 'object' && schema !== null,
       );
     }
 
     if (typeof page === 'object' && page !== null) {
       return Object.values(page).filter(
-        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+        (schema): schema is Record<string, unknown> =>
+          typeof schema === 'object' && schema !== null,
       );
     }
 
@@ -824,7 +832,7 @@ function getStringMatrixInputIssue(
 
   const parsedValue =
     typeof rawValue === 'string' && hint.expectedInput.acceptsJsonString === true
-      ? parseTableStringMatrix(rawValue) ?? rawValue
+      ? (parseTableStringMatrix(rawValue) ?? rawValue)
       : rawValue;
 
   const issue = getStringMatrixShapeIssue(parsedValue, hint.expectedInput.columnCount);
@@ -840,9 +848,7 @@ function getStringMatrixInputIssue(
   });
 }
 
-function isCanonicalDateHint(
-  hint: FieldInputHint,
-): hint is FieldInputHint & {
+function isCanonicalDateHint(hint: FieldInputHint): hint is FieldInputHint & {
   type: 'date' | 'time' | 'dateTime';
   expectedInput: FieldInputHint['expectedInput'] & { canonicalFormat: string };
 } {
@@ -1022,8 +1028,7 @@ function isValidClockTime(hours: number, minutes: number): boolean {
 }
 
 function parseRendererDateValue(value: string, type: 'date' | 'time' | 'dateTime'): Date | null {
-  const parsed =
-    type === 'time' ? new Date(`2021-01-01T${value}`) : new Date(value);
+  const parsed = type === 'time' ? new Date(`2021-01-01T${value}`) : new Date(value);
 
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -1065,7 +1070,9 @@ function buildEnumStringErrorMessage(args: {
   extra: string;
   example?: string | string[][];
 }): string {
-  const allowedValues = (args.hint.expectedInput.allowedValues ?? []).map((value) => JSON.stringify(value));
+  const allowedValues = (args.hint.expectedInput.allowedValues ?? []).map((value) =>
+    JSON.stringify(value),
+  );
   const allowedLabel =
     allowedValues.length > 0 ? ` one of: ${allowedValues.join(', ')}` : ' a supported string value';
   const exampleLabel =
@@ -1130,8 +1137,7 @@ function buildRadioGroupSelectionErrorMessage(args: {
 function describeValue(value: unknown): string {
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    const kind =
-      trimmed.startsWith('{') || trimmed.startsWith('[') ? 'string' : 'plain string';
+    const kind = trimmed.startsWith('{') || trimmed.startsWith('[') ? 'string' : 'plain string';
     return `${kind} ${JSON.stringify(value)}`;
   }
 
@@ -1152,13 +1158,17 @@ function describeValue(value: unknown): string {
 
 export function getUniqueStringValues(values: unknown[]): string[] {
   return [
-    ...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0)),
+    ...new Set(
+      values.filter((value): value is string => typeof value === 'string' && value.length > 0),
+    ),
   ].sort();
 }
 
 function getUniqueOrderedStringValues(values: unknown[]): string[] {
   return [
-    ...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0)),
+    ...new Set(
+      values.filter((value): value is string => typeof value === 'string' && value.length > 0),
+    ),
   ];
 }
 
@@ -1232,7 +1242,8 @@ export function summarizeBasePdf(
         kind: 'blank',
         width,
         height,
-        paperSize: width !== undefined && height !== undefined ? detectPaperSize(width, height) : null,
+        paperSize:
+          width !== undefined && height !== undefined ? detectPaperSize(width, height) : null,
       };
     }
 

@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "description": "CLI tool for pdfme - generate PDFs, convert images, validate templates",
   "keywords": [
+    "cli",
     "pdf",
     "pdf-generation",
-    "cli",
     "typescript"
   ],
   "homepage": "https://pdfme.com",
@@ -18,14 +18,14 @@
     "type": "git",
     "url": "git@github.com:pdfme/pdfme.git"
   },
-  "type": "module",
+  "bin": {
+    "pdfme": "dist/index.js"
+  },
   "files": [
     "dist",
     "README.md"
   ],
-  "bin": {
-    "pdfme": "dist/index.js"
-  },
+  "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

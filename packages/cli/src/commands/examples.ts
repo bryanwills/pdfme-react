@@ -1,10 +1,5 @@
 import { defineCommand } from 'citty';
-import {
-  assertNoUnknownFlags,
-  fail,
-  printJson,
-  runWithContract,
-} from '../contract.js';
+import { assertNoUnknownFlags, fail, printJson, runWithContract } from '../contract.js';
 import { writeOutput } from '../utils.js';
 import {
   fetchExampleTemplateWithSource,
@@ -109,10 +104,13 @@ export default defineCommand({
 
       const entry = templateEntries.find((template) => template.name === args.name);
       if (!entry) {
-        fail(`Template "${args.name}" not found. Available templates: ${templateNames.join(', ')}`, {
-          code: 'EARG',
-          exitCode: 1,
-        });
+        fail(
+          `Template "${args.name}" not found. Available templates: ${templateNames.join(', ')}`,
+          {
+            code: 'EARG',
+            exitCode: 1,
+          },
+        );
       }
 
       let templateResult;
@@ -131,10 +129,12 @@ export default defineCommand({
         );
       }
 
-      const output = args.withInputs ? buildExampleJob(templateResult.template) : templateResult.template;
+      const output = args.withInputs
+        ? buildExampleJob(templateResult.template)
+        : templateResult.template;
       const mode = args.withInputs ? 'job' : 'template';
       const stats = countTemplateStats(templateResult.template);
-      const inputCount = args.withInputs ? (((output.inputs as unknown[])?.length ?? 0)) : undefined;
+      const inputCount = args.withInputs ? ((output.inputs as unknown[])?.length ?? 0) : undefined;
 
       if (args.verbose) {
         console.error(`Template: ${args.name}`);
@@ -225,7 +225,8 @@ function normalizeSchemaPages(rawSchemas: unknown): Array<Array<Record<string, u
   return rawSchemas.map((page) => {
     if (Array.isArray(page)) {
       return page.filter(
-        (schema): schema is Record<string, unknown> => typeof schema === 'object' && schema !== null,
+        (schema): schema is Record<string, unknown> =>
+          typeof schema === 'object' && schema !== null,
       );
     }
 

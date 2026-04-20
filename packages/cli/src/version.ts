@@ -4,7 +4,9 @@ declare const __CLI_VERSION__: string | undefined;
 
 function readPackageVersion(): string {
   try {
-    const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+    const packageJson = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as {
       version?: string;
     };
     return packageJson.version ?? '0.0.0';

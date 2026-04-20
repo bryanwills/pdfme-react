@@ -6,10 +6,7 @@ export type VariableMatch = {
 
 export type VariableIndices = Map<number, string>;
 
-export const visitVariables = (
-  content: string,
-  visitor: (match: VariableMatch) => void,
-): void => {
+export const visitVariables = (content: string, visitor: (match: VariableMatch) => void): void => {
   let startIndex = -1;
 
   for (let i = 0; i < content.length; i++) {
