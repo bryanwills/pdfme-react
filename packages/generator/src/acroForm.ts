@@ -29,11 +29,13 @@ type AcroTextSchema = AcroFormSchema & {
 };
 
 type AcroCheckboxSchema = AcroFormSchema & {
+  backgroundColor?: string;
   color?: string;
 };
 
 type AcroRadioGroupSchema = AcroFormSchema & {
   __acroPageIndex?: number;
+  backgroundColor?: string;
   color?: string;
   group?: string;
 };
@@ -45,7 +47,6 @@ type RadioGroupCacheState = {
 
 const DEFAULT_FONT_COLOR = '#000000';
 const DEFAULT_FONT_SIZE = 13;
-const DEFAULT_FORM_BACKGROUND_COLOR = '#ffffff';
 const DEFAULT_FORM_BORDER_COLOR = '#000000';
 const FIELD_NAME_COUNTS_CACHE_KEY = 'generateForm:fieldNameCounts';
 const RADIO_GROUPS_CACHE_KEY = 'generateForm:radioGroups';
@@ -195,10 +196,9 @@ const renderAcroText = async (arg: PDFRenderProps<Schema>) => {
     rotate,
     font: pdfFont,
     textColor: hex2PrintingColor(textSchema.fontColor || DEFAULT_FONT_COLOR, options.colorType),
-    backgroundColor: hex2PrintingColor(
-      textSchema.backgroundColor || DEFAULT_FORM_BACKGROUND_COLOR,
-      options.colorType,
-    ),
+    backgroundColor: textSchema.backgroundColor
+      ? hex2PrintingColor(textSchema.backgroundColor, options.colorType)
+      : undefined,
     borderWidth: 0,
   });
   textField.setFontSize(textSchema.fontSize ?? DEFAULT_FONT_SIZE);
@@ -225,7 +225,9 @@ const renderAcroCheckbox = (arg: PDFRenderProps<Schema>) => {
     height,
     rotate,
     textColor: hex2PrintingColor(color, options.colorType),
-    backgroundColor: hex2PrintingColor(DEFAULT_FORM_BACKGROUND_COLOR, options.colorType),
+    backgroundColor: checkboxSchema.backgroundColor
+      ? hex2PrintingColor(checkboxSchema.backgroundColor, options.colorType)
+      : undefined,
     borderColor: hex2PrintingColor(color, options.colorType),
     borderWidth: 1,
   });
@@ -253,7 +255,9 @@ const renderAcroRadioGroup = (arg: PDFRenderProps<Schema>) => {
     height,
     rotate,
     textColor: hex2PrintingColor(color, options.colorType),
-    backgroundColor: hex2PrintingColor(DEFAULT_FORM_BACKGROUND_COLOR, options.colorType),
+    backgroundColor: radioGroupSchema.backgroundColor
+      ? hex2PrintingColor(radioGroupSchema.backgroundColor, options.colorType)
+      : undefined,
     borderColor: hex2PrintingColor(color, options.colorType),
     borderWidth: 1,
   });
