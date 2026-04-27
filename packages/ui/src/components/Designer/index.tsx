@@ -22,8 +22,16 @@ import { DndContext } from '@dnd-kit/core';
 import RightSidebar from './RightSidebar/index.js';
 import LeftSidebar from './LeftSidebar.js';
 import Canvas from './Canvas/index.js';
-import { RULER_HEIGHT, RIGHT_SIDEBAR_WIDTH, LEFT_SIDEBAR_WIDTH } from '../../constants.js';
-import { I18nContext, OptionsContext, PluginsRegistry } from '../../contexts.js';
+import {
+  RULER_HEIGHT,
+  RIGHT_SIDEBAR_WIDTH,
+  LEFT_SIDEBAR_WIDTH,
+} from '../../constants.js';
+import {
+  I18nContext,
+  OptionsContext,
+  PluginsRegistry,
+} from '../../contexts.js';
 import {
   schemasList2template,
   uuid,
@@ -33,7 +41,11 @@ import {
   changeSchemas as _changeSchemas,
   useMaxZoom,
 } from '../../helper.js';
-import { useUIPreProcessor, useScrollPageCursor, useInitEvents } from '../../hooks.js';
+import {
+  useUIPreProcessor,
+  useScrollPageCursor,
+  useInitEvents,
+} from '../../hooks.js';
 import Root from '../Root.js';
 import ErrorScreen from '../ErrorScreen.js';
 import CtlBar from '../CtlBar.js';
@@ -75,7 +87,9 @@ const TemplateEditor = ({
 
   const [hoveringSchemaId, setHoveringSchemaId] = useState<string | null>(null);
   const [activeElements, setActiveElements] = useState<HTMLElement[]>([]);
-  const [schemasList, setSchemasList] = useState<SchemaForUI[][]>([[]] as SchemaForUI[][]);
+  const [schemasList, setSchemasList] = useState<SchemaForUI[][]>([
+    [],
+  ] as SchemaForUI[][]);
   const [pageCursor, setPageCursor] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(options.zoomLevel ?? 1);
   const [sidebarOpen, setSidebarOpen] = useState(options.sidebarOpen ?? true);
@@ -91,7 +105,9 @@ const TemplateEditor = ({
 
   const onEdit = (targets: Array<HTMLElement | null | undefined>) => {
     setActiveElements(
-      targets.filter((target): target is HTMLElement => target instanceof HTMLElement),
+      targets.filter(
+        (target): target is HTMLElement => target instanceof HTMLElement,
+      ),
     );
     setHoveringSchemaId(null);
   };
@@ -153,7 +169,9 @@ const TemplateEditor = ({
 
   const removeSchemas = useCallback(
     (ids: string[]) => {
-      commitSchemas(schemasList[pageCursor].filter((schema) => !ids.includes(schema.id)));
+      commitSchemas(
+        schemasList[pageCursor].filter((schema) => !ids.includes(schema.id)),
+      );
       onEditEnd();
     },
     [schemasList, pageCursor, commitSchemas],
@@ -170,7 +188,14 @@ const TemplateEditor = ({
         commitSchemas,
       });
     },
-    [commitSchemas, pageCursor, schemasList, pluginsRegistry, pageSizes, template.basePdf],
+    [
+      commitSchemas,
+      pageCursor,
+      schemasList,
+      pluginsRegistry,
+      pageSizes,
+      template.basePdf,
+    ],
   );
 
   useInitEvents({
@@ -190,18 +215,36 @@ const TemplateEditor = ({
     onEditEnd,
   });
 
-  const updateTemplate = useCallback(async (newTemplate: Template) => {
-    const sl = await template2SchemasList(newTemplate);
-    setSchemasList(sl);
-    onEditEnd();
-    setPageCursor(0);
-    if (canvasRef.current?.scroll) {
-      canvasRef.current.scroll({ top: 0, behavior: 'smooth' });
-    }
-  }, []);
+  const updateTemplate = useCallback(
+    async (newTemplate: Template, preservePage = false) => {
+      const sl = await template2SchemasList(newTemplate);
+      setSchemasList(sl);
+      onEditEnd();
+      if (!preservePage) {
+        setPageCursor(0);
+        if (canvasRef.current?.scroll) {
+          canvasRef.current.scroll({ top: 0, behavior: 'smooth' });
+        }
+      } else {
+        setPageCursor((prev) => {
+          const clamped = Math.min(prev, sl.length - 1);
+          if (clamped !== prev && canvasRef.current) {
+            canvasRef.current.scroll({
+              top: getPagesScrollTopByIndex(pageSizes, clamped, scale),
+              behavior: 'smooth',
+            });
+          }
+          return clamped;
+        });
+      }
+    },
+    [pageSizes, scale],
+  );
 
   const addSchema = (defaultSchema: Schema) => {
-    const [paddingTop, paddingRight, paddingBottom, paddingLeft] = isBlankPdf(template.basePdf)
+    const [paddingTop, paddingRight, paddingBottom, paddingLeft] = isBlankPdf(
+      template.basePdf,
+    )
       ? template.basePdf.padding
       : [0, 0, 0, 0];
     const pageSize = pageSizes[pageCursor];
@@ -242,7 +285,8 @@ const TemplateEditor = ({
     if (defaultSchema.position.y === 0) {
       const paper = paperRefs.current[pageCursor];
       const rectTop = paper ? paper.getBoundingClientRect().top : 0;
-      s.position.y = rectTop > 0 ? paddingTop : pageSizes[pageCursor].height / 2;
+      s.position.y =
+        rectTop > 0 ? paddingTop : pageSizes[pageCursor].height / 2;
     }
 
     commitSchemas(schemasList[pageCursor].concat(s));
@@ -261,7 +305,7 @@ const TemplateEditor = ({
     setPageCursor(newPageCursor);
     const newTemplate = schemasList2template(sl, template.basePdf);
     onChangeTemplate(newTemplate);
-    await updateTemplate(newTemplate);
+    await updateTemplate(newTemplate, true);
     void refresh(newTemplate);
 
     // Notify page change with updated total pages
@@ -270,7 +314,11 @@ const TemplateEditor = ({
     // Use setTimeout to update scroll position after render
     setTimeout(() => {
       if (canvasRef.current) {
-        canvasRef.current.scrollTop = getPagesScrollTopByIndex(pageSizes, newPageCursor, scale);
+        canvasRef.current.scrollTop = getPagesScrollTopByIndex(
+          pageSizes,
+          newPageCursor,
+          scale,
+        );
       }
     }, 0);
   };
@@ -292,7 +340,7 @@ const TemplateEditor = ({
 
   if (prevTemplate !== template) {
     setPrevTemplate(template);
-    void updateTemplate(template);
+    void updateTemplate(template, true);
   }
 
   const canvasWidth = size.width - LEFT_SIDEBAR_WIDTH;
@@ -316,7 +364,8 @@ const TemplateEditor = ({
           // Triggered after a schema is dragged & dropped from the left sidebar.
           if (!event.active) return;
           const active = event.active;
-          const pageRect = paperRefs.current[pageCursor].getBoundingClientRect();
+          const pageRect =
+            paperRefs.current[pageCursor].getBoundingClientRect();
 
           const dragStartLeft = active.rect.current.initial?.left || 0;
           const dragStartTop = active.rect.current.initial?.top || 0;
@@ -326,7 +375,8 @@ const TemplateEditor = ({
           const canvasTopOffsetFromPageCorner = pageRect.top - dragStartTop;
 
           const moveY = (event.delta.y - canvasTopOffsetFromPageCorner) / scale;
-          const moveX = (event.delta.x - canvasLeftOffsetFromPageCorner) / scale;
+          const moveX =
+            (event.delta.x - canvasLeftOffsetFromPageCorner) / scale;
 
           const position = {
             x: round(px2mm(Math.max(0, moveX)), 2),
@@ -337,9 +387,19 @@ const TemplateEditor = ({
         }}
         onDragStart={onEditEnd}
       >
-        <LeftSidebar height={canvasHeight} scale={scale} basePdf={template.basePdf} />
+        <LeftSidebar
+          height={canvasHeight}
+          scale={scale}
+          basePdf={template.basePdf}
+        />
 
-        <div style={{ position: 'absolute', width: canvasWidth, marginLeft: LEFT_SIDEBAR_WIDTH }}>
+        <div
+          style={{
+            position: 'absolute',
+            width: canvasWidth,
+            marginLeft: LEFT_SIDEBAR_WIDTH,
+          }}
+        >
           <CtlBar
             size={sizeExcSidebars}
             pageCursor={pageCursor}
@@ -347,7 +407,11 @@ const TemplateEditor = ({
             setPageCursor={(p) => {
               if (!canvasRef.current) return;
               // Update scroll position and state
-              canvasRef.current.scrollTop = getPagesScrollTopByIndex(pageSizes, p, scale);
+              canvasRef.current.scrollTop = getPagesScrollTopByIndex(
+                pageSizes,
+                p,
+                scale,
+              );
               setPageCursor(p);
               onPageCursorChange(p, schemasList.length);
               onEditEnd();
